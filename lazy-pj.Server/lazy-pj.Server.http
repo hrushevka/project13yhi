@@ -1,0 +1,6 @@
+@lazy_pj.Server_HostAddress = http://localhost:5080
+
+GET {{lazy_pj.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

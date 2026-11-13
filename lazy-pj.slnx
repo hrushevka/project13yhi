@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="lazy-pj.client/lazy-pj.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="lazy-pj.Server/lazy-pj.Server.csproj" />
+</Solution>

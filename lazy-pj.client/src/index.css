@@ -1,0 +1,100 @@
+:root {
+  --color-light: #D9E7E8;
+  --color-teal: #528A9A;
+  --color-dark: #25252B;
+
+  --surface-glass: rgba(37, 37, 43, 0.72);
+  --surface-glass-strong: rgba(37, 37, 43, 0.88);
+  --surface-teal-soft: rgba(82, 138, 154, 0.18);
+  --surface-teal-medium: rgba(82, 138, 154, 0.32);
+  --surface-light-soft: rgba(217, 231, 232, 0.08);
+  --surface-light-medium: rgba(217, 231, 232, 0.16);
+
+  --border-subtle: rgba(217, 231, 232, 0.15);
+  --border-teal: rgba(82, 138, 154, 0.55);
+  --border-strong: rgba(217, 231, 232, 0.34);
+
+  --text-primary: #D9E7E8;
+  --text-secondary: rgba(217, 231, 232, 0.74);
+  --text-muted: rgba(217, 231, 232, 0.52);
+
+  --radius-xl: 12px;
+  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-pill: 12px;
+
+  font-family: 'Unbounded', 'Unbound', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--color-light);
+  background-color: var(--color-dark);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: var(--color-dark);
+  color: var(--color-light);
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  color: inherit;
+}
+
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-contacts-auto-fill-button {
+  visibility: hidden !important;
+  display: none !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(82, 138, 154, 0.45);
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-teal);
+}
