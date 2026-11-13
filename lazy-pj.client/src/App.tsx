@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import './App.css';
 import { api } from './api';
 import type { AuthSession } from './types';
-import { ShaderBackground } from './components/ShaderBackground';
 import { HolstCanvas } from './components/HolstCanvas';
 import { AuthPage } from './pages/AuthPage';
 import { CabinetPage } from './pages/CabinetPage';
@@ -102,8 +101,6 @@ export function App() {
 
     return (
         <div className="app-shell">
-            <ShaderBackground theme={theme} />
-
             {view === 'canvas' && <HolstCanvas theme={theme} />}
 
             <header className="top-navbar">

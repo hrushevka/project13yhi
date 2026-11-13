@@ -148,7 +148,7 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
 
     return (
         <div className="auth-wrapper">
-            <div className="auth-card auth-cloud-card">
+            <div className="auth-card">
                 <div className="auth-header">
                     <div className="handwritten-greeting-wrap">
                         <svg
@@ -227,7 +227,7 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
                                 }}
                                 style={
                                     invalidField === 'name'
-                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
+                                        ? { borderColor: 'var(--accent)' }
                                         : undefined
                                 }
                             />
@@ -250,7 +250,7 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
                             }}
                             style={
                                 invalidField === 'email'
-                                    ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
+                                    ? { borderColor: 'var(--accent)' }
                                     : undefined
                             }
                         />
@@ -273,7 +273,7 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
                                 }}
                                 style={
                                     invalidField === 'password'
-                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
+                                        ? { borderColor: 'var(--accent)' }
                                         : undefined
                                 }
                             />

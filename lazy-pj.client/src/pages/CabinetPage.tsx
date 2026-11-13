@@ -11,7 +11,7 @@ interface CabinetPageProps {
     onLogout?: () => void;
 }
 
-const INVALID_STYLE = { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' };
+const INVALID_STYLE = { borderColor: 'var(--accent)' };
 
 export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }: CabinetPageProps) {
     const [editName, setEditName] = useState(session.user.name);

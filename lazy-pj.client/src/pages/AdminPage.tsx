@@ -213,8 +213,7 @@ export function AdminPage() {
                                     maxWidth: 220,
                                     ...(invalidRoleId
                                         ? {
-                                              borderColor: 'var(--text-primary)',
-                                              boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)',
+                                              borderColor: 'var(--accent)',
                                           }
                                         : {}),
                                 }}
