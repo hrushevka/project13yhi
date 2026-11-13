@@ -183,6 +183,8 @@
   font-size: 0.9rem;
   color: var(--text-primary);
   letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sim-preset-source {
@@ -190,14 +192,7 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-}
-
-.sim-hint {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .sim-panel-controls {
@@ -247,39 +242,63 @@
   margin: 0 4px;
 }
 
-.sim-speed-group {
+.sim-speed-control {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
   height: 34px;
-  padding: 3px;
+  padding: 0 10px;
   border-radius: 12px;
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
 
-.sim-speed-btn {
-  height: 26px;
-  min-width: 38px;
-  padding: 0 6px;
+.sim-speed-slider {
+  width: 112px;
+  height: 4px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--border);
   border-radius: 12px;
+  outline: none;
+  cursor: pointer;
+  touch-action: pan-x;
+}
+
+.sim-speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
   border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.7rem;
-  font-weight: 600;
   cursor: pointer;
 }
 
-.sim-speed-btn.is-active {
+.sim-speed-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   background: var(--accent);
-  color: var(--accent-text);
+  border: none;
+  cursor: pointer;
+}
+
+.sim-speed-value {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .sim-time {
   font-size: 0.72rem;
   color: var(--text-secondary);
-  min-width: 70px;
+  min-width: 68px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   padding-right: 6px;

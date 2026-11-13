@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api';
 import type { PresetDetail } from '../types';
-import { FALLBACK_PRESET, isStateFinite, rk4Step, toSimBodies } from '../utils/physics';
+import { FALLBACK_PRESET, isStateFinite, minPairTimescale, stepBodiesInPlace, toSimBodies } from '../utils/physics';
 import type { SimBody } from '../utils/physics';
 
 interface HolstCanvasProps {
@@ -41,7 +41,9 @@ interface MenuState {
     body: SimBody;
 }
 
-const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
+const MIN_SPEED = 0.1;
+const MAX_SPEED = 5;
+const SPEED_STEP = 0.1;
 const MAX_BODIES = 3;
 const VELOCITY_SCALE = 0.6;
 const MAX_TRAIL_POINTS = 900;
@@ -86,6 +88,10 @@ function computeUnitPx(bodies: SimBody[]): number {
 function formatNumber(value: number): string {
     if (!Number.isFinite(value)) return '0';
     return String(Number(value.toFixed(4)));
+}
+
+function formatSimTime(seconds: number): string {
+    return `${seconds.toFixed(2)} с`;
 }
 
 interface BodyMenuProps {
@@ -191,10 +197,11 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         dt: FALLBACK_PRESET.dt,
         source: 'loading',
     });
-    const [simTime, setSimTime] = useState(0);
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState<MenuState | null>(null);
     const [cursorMode, setCursorMode] = useState<'pan' | 'place' | 'grab'>('pan');
+
+    const timeTextRef = useRef<HTMLSpanElement | null>(null);
 
     const offsetRef = useRef(offset);
     const scaleRef = useRef(scale);
@@ -241,27 +248,40 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         selectedRef.current = menu ? menu.index : null;
     }, [menu]);
 
+    const syncTimeText = useCallback(() => {
+        if (timeTextRef.current) {
+            timeTextRef.current.textContent = formatSimTime(simTimeRef.current);
+        }
+    }, []);
+
+    useEffect(() => {
+        syncTimeText();
+    });
+
     const commitEdit = useCallback(() => {
         trailsRef.current = stateRef.current.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
         setupRef.current = cloneBodies(stateRef.current);
-        setSimTime(0);
+        syncTimeText();
         setBodyCount(stateRef.current.length);
-    }, []);
+    }, [syncTimeText]);
 
-    const loadBodies = useCallback((bodies: SimBody[]) => {
-        stateRef.current = cloneBodies(bodies);
-        setupRef.current = cloneBodies(bodies);
-        trailsRef.current = bodies.map(() => []);
-        simTimeRef.current = 0;
-        trailClockRef.current = 0;
-        if (bodies.length > 0) {
-            unitPxRef.current = computeUnitPx(bodies);
-        }
-        setSimTime(0);
-        setBodyCount(bodies.length);
-    }, []);
+    const loadBodies = useCallback(
+        (bodies: SimBody[]) => {
+            stateRef.current = cloneBodies(bodies);
+            setupRef.current = cloneBodies(bodies);
+            trailsRef.current = bodies.map(() => []);
+            simTimeRef.current = 0;
+            trailClockRef.current = 0;
+            if (bodies.length > 0) {
+                unitPxRef.current = computeUnitPx(bodies);
+            }
+            syncTimeText();
+            setBodyCount(bodies.length);
+        },
+        [syncTimeText]
+    );
 
     const applyPreset = useCallback(
         (preset: PresetDetail, source: 'server' | 'demo') => {
@@ -305,8 +325,14 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
 
         let raf = 0;
         let lastTime = performance.now();
-        let accumulator = 0;
-        let uiClock = 0;
+        let cachedGridScale = -1;
+        let cachedGridColor = '';
+        let gridPattern: CanvasPattern | null = null;
+        const tileSize = 64;
+        const tileCanvas = document.createElement('canvas');
+        tileCanvas.width = tileSize;
+        tileCanvas.height = tileSize;
+        const tileCtx = tileCanvas.getContext('2d');
 
         const resize = () => {
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -320,32 +346,45 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
 
         const step = (realDt: number) => {
             const cfg = configRef.current;
-            if (!runningRef.current || stateRef.current.length !== MAX_BODIES) {
-                accumulator = 0;
+            const state = stateRef.current;
+            if (!runningRef.current || state.length !== MAX_BODIES || realDt <= 0) {
                 return;
             }
 
-            accumulator += realDt * speedRef.current;
-            let steps = Math.floor(accumulator / cfg.dt);
-            if (steps > MAX_STEPS_PER_FRAME) {
-                steps = MAX_STEPS_PER_FRAME;
-                accumulator = 0;
-            } else {
-                accumulator -= steps * cfg.dt;
+            for (let i = 0; i < state.length; i++) {
+                const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
+                if (trail.length === 0) {
+                    trail.push({ x: state[i].x, y: state[i].y });
+                }
             }
 
-            let state = stateRef.current;
-            for (let s = 0; s < steps; s++) {
-                state = rk4Step(state, cfg.g, cfg.softening, cfg.dt);
-                simTimeRef.current += cfg.dt;
-                trailClockRef.current += cfg.dt;
-                if (trailClockRef.current >= TRAIL_SAMPLE_TIME) {
+            let remaining = realDt * speedRef.current;
+            const baseMaxDt = Math.max(0.0002, Math.min(cfg.dt > 0 ? cfg.dt : 0.001, 0.002));
+            let stepBudget = MAX_STEPS_PER_FRAME;
+
+            while (remaining > 1e-12 && stepBudget > 0) {
+                const tillTrail = Math.max(1e-6, TRAIL_SAMPLE_TIME - trailClockRef.current);
+                const chunkDt = Math.min(remaining, tillTrail);
+                const minTau = minPairTimescale(state, cfg.g, cfg.softening);
+                const safeMaxDt = Math.min(baseMaxDt, Math.max(0.00002, 0.04 * minTau));
+                const neededSteps = Math.max(1, Math.ceil(chunkDt / safeMaxDt));
+                const subSteps = Math.min(stepBudget, neededSteps);
+                const stepDt = chunkDt / neededSteps;
+                const integratedDt = stepDt * subSteps;
+
+                stepBodiesInPlace(state, cfg.g, cfg.softening, stepDt, subSteps);
+                stepBudget -= subSteps;
+                remaining -= integratedDt;
+                simTimeRef.current += integratedDt;
+                trailClockRef.current += integratedDt;
+
+                if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
                     trailClockRef.current = 0;
-                    state.forEach((b, i) => {
+                    for (let i = 0; i < state.length; i++) {
                         const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
-                        trail.push({ x: b.x, y: b.y });
+                        trail.push({ x: state[i].x, y: state[i].y });
                         if (trail.length > MAX_TRAIL_POINTS) trail.shift();
-                    });
+                    }
                 }
             }
 
@@ -355,12 +394,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
                 return;
             }
 
-            stateRef.current = state;
-            uiClock += realDt;
-            if (uiClock > 0.1) {
-                uiClock = 0;
-                setSimTime(simTimeRef.current);
-            }
+            syncTimeText();
         };
 
         const draw = () => {
@@ -375,19 +409,34 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
             ctx.clearRect(0, 0, width, height);
 
             const gridStep = GRID_STEP * scaleRef.current;
-            if (gridStep >= 8) {
-                const dotR = Math.max(1, 1.2 * Math.min(scaleRef.current, 1.4));
-                const startX = ((cx % gridStep) + gridStep) % gridStep;
-                const startY = ((cy % gridStep) + gridStep) % gridStep;
-                ctx.fillStyle = colors.grid;
-                ctx.beginPath();
-                for (let gx = startX; gx < width; gx += gridStep) {
-                    for (let gy = startY; gy < height; gy += gridStep) {
-                        ctx.moveTo(gx + dotR, gy);
-                        ctx.arc(gx, gy, dotR, 0, Math.PI * 2);
-                    }
+            if (gridStep >= 8 && tileCtx) {
+                if (cachedGridScale !== scaleRef.current || cachedGridColor !== colors.grid) {
+                    cachedGridScale = scaleRef.current;
+                    cachedGridColor = colors.grid;
+                    const dotR = Math.max(1, 1.2 * Math.min(scaleRef.current, 1.4));
+                    const tileR = (dotR * tileSize) / gridStep;
+                    tileCtx.clearRect(0, 0, tileSize, tileSize);
+                    tileCtx.fillStyle = colors.grid;
+                    tileCtx.beginPath();
+                    tileCtx.arc(tileSize * 0.5, tileSize * 0.5, tileR, 0, Math.PI * 2);
+                    tileCtx.fill();
+                    gridPattern = ctx.createPattern(tileCanvas, 'repeat');
                 }
-                ctx.fill();
+                if (gridPattern) {
+                    const startX = ((cx % gridStep) + gridStep) % gridStep;
+                    const startY = ((cy % gridStep) + gridStep) % gridStep;
+                    const scaleRatio = gridStep / tileSize;
+                    gridPattern.setTransform({
+                        a: scaleRatio,
+                        b: 0,
+                        c: 0,
+                        d: scaleRatio,
+                        e: startX - gridStep * 0.5,
+                        f: startY - gridStep * 0.5,
+                    });
+                    ctx.fillStyle = gridPattern;
+                    ctx.fillRect(0, 0, width, height);
+                }
             }
 
             ctx.strokeStyle = colors.origin;
@@ -404,13 +453,15 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
             ctx.lineJoin = 'round';
             ctx.globalAlpha = colors.trailAlpha;
             trailsRef.current.forEach((trail, i) => {
-                if (trail.length < 2) return;
+                const body = stateRef.current[i];
+                if (!body || trail.length < 1) return;
                 ctx.strokeStyle = colors.bodies[i % colors.bodies.length];
                 ctx.beginPath();
                 ctx.moveTo(cx + trail[0].x * k, cy - trail[0].y * k);
                 for (let p = 1; p < trail.length; p++) {
                     ctx.lineTo(cx + trail[p].x * k, cy - trail[p].y * k);
                 }
+                ctx.lineTo(cx + body.x * k, cy - body.y * k);
                 ctx.stroke();
             });
             ctx.globalAlpha = 1;
@@ -472,7 +523,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         };
 
         const frame = (now: number) => {
-            const realDt = Math.min(0.05, (now - lastTime) / 1000);
+            const realDt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
             lastTime = now;
             step(realDt);
             draw();
@@ -485,7 +536,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
             cancelAnimationFrame(raf);
             window.removeEventListener('resize', resize);
         };
-    }, []);
+    }, [syncTimeText]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -682,7 +733,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         trailsRef.current = stateRef.current.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
-        setSimTime(0);
+        syncTimeText();
         setBodyCount(stateRef.current.length);
     };
 
@@ -715,11 +766,10 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         setScale(1);
     };
 
-    const hint = running
-        ? 'Пауза — чтобы менять тела. Двойной клик по телу — настройки'
-        : bodyCount < MAX_BODIES
-          ? `Кликните по холсту и тяните — тело и его скорость (${bodyCount}/${MAX_BODIES})`
-          : 'Тяните тело — позиция, точку на стрелке — скорость, двойной клик — настройки';
+    const handleSpeedChange = (nextSpeed: number) => {
+        speedRef.current = nextSpeed;
+        setSpeed(nextSpeed);
+    };
 
     const sourceLabel = config.source === 'loading' ? 'загрузка' : config.source === 'server' ? 'из базы' : 'демо';
 
@@ -754,7 +804,6 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
                             <span className="sim-preset-name">{config.title}</span>
                             <span className="sim-preset-source">{sourceLabel}</span>
                         </div>
-                        <span className="sim-hint">{hint}</span>
                     </div>
 
                     <div className="sim-panel-controls">
@@ -800,20 +849,21 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
 
                         <span className="sim-divider" />
 
-                        <div className="sim-speed-group" role="group" aria-label="Скорость симуляции">
-                            {SPEED_OPTIONS.map((option) => (
-                                <button
-                                    key={option}
-                                    type="button"
-                                    className={`sim-speed-btn ${speed === option ? 'is-active' : ''}`}
-                                    onClick={() => setSpeed(option)}
-                                >
-                                    {option}×
-                                </button>
-                            ))}
+                        <div className="sim-speed-control" title="Скорость времени">
+                            <input
+                                type="range"
+                                className="sim-speed-slider"
+                                min={MIN_SPEED}
+                                max={MAX_SPEED}
+                                step={SPEED_STEP}
+                                value={speed}
+                                onChange={(e) => handleSpeedChange(Number(e.target.value))}
+                                aria-label="Скорость времени"
+                            />
+                            <span className="sim-speed-value">{speed.toFixed(1)}×</span>
                         </div>
 
-                        <span className="sim-time">t = {simTime.toFixed(2)}</span>
+                        <span ref={timeTextRef} className="sim-time" />
                     </div>
                 </div>
 

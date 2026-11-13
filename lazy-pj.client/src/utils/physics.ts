@@ -8,9 +8,191 @@ export interface SimBody {
     vy: number;
 }
 
-interface Acceleration {
-    ax: number;
-    ay: number;
+interface ScratchBuffers {
+    cap: number;
+    bx: Float64Array;
+    by: Float64Array;
+    bvx: Float64Array;
+    bvy: Float64Array;
+    bm: Float64Array;
+    tx: Float64Array;
+    ty: Float64Array;
+    tvx2: Float64Array;
+    tvy2: Float64Array;
+    tvx3: Float64Array;
+    tvy3: Float64Array;
+    tvx4: Float64Array;
+    tvy4: Float64Array;
+    k1x: Float64Array;
+    k1y: Float64Array;
+    k2x: Float64Array;
+    k2y: Float64Array;
+    k3x: Float64Array;
+    k3y: Float64Array;
+    k4x: Float64Array;
+    k4y: Float64Array;
+}
+
+function makeScratch(cap: number): ScratchBuffers {
+    return {
+        cap,
+        bx: new Float64Array(cap),
+        by: new Float64Array(cap),
+        bvx: new Float64Array(cap),
+        bvy: new Float64Array(cap),
+        bm: new Float64Array(cap),
+        tx: new Float64Array(cap),
+        ty: new Float64Array(cap),
+        tvx2: new Float64Array(cap),
+        tvy2: new Float64Array(cap),
+        tvx3: new Float64Array(cap),
+        tvy3: new Float64Array(cap),
+        tvx4: new Float64Array(cap),
+        tvy4: new Float64Array(cap),
+        k1x: new Float64Array(cap),
+        k1y: new Float64Array(cap),
+        k2x: new Float64Array(cap),
+        k2y: new Float64Array(cap),
+        k3x: new Float64Array(cap),
+        k3y: new Float64Array(cap),
+        k4x: new Float64Array(cap),
+        k4y: new Float64Array(cap),
+    };
+}
+
+let scratch = makeScratch(8);
+
+function ensureScratch(n: number): ScratchBuffers {
+    if (n > scratch.cap) {
+        scratch = makeScratch(n);
+    }
+    return scratch;
+}
+
+function computeAccelerations(
+    n: number,
+    px: Float64Array,
+    py: Float64Array,
+    pm: Float64Array,
+    G: number,
+    eps2: number,
+    ax: Float64Array,
+    ay: Float64Array
+): void {
+    for (let i = 0; i < n; i++) {
+        ax[i] = 0;
+        ay[i] = 0;
+    }
+    for (let i = 0; i < n; i++) {
+        const xi = px[i];
+        const yi = py[i];
+        const mi = pm[i];
+        for (let j = i + 1; j < n; j++) {
+            const dx = px[j] - xi;
+            const dy = py[j] - yi;
+            const r2 = dx * dx + dy * dy + eps2;
+            const inv = 1 / (r2 * Math.sqrt(r2));
+            const fi = G * pm[j] * inv;
+            const fj = G * mi * inv;
+            ax[i] += dx * fi;
+            ay[i] += dy * fi;
+            ax[j] -= dx * fj;
+            ay[j] -= dy * fj;
+        }
+    }
+}
+
+export function minPairTimescale(state: SimBody[], G: number, softening: number): number {
+    const n = state.length;
+    if (n < 2 || G <= 0) return Infinity;
+    const eps2 = softening * softening;
+    let minTau = Infinity;
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            const dx = state[j].x - state[i].x;
+            const dy = state[j].y - state[i].y;
+            const r2 = dx * dx + dy * dy + eps2;
+            const mSum = state[i].m + state[j].m;
+            if (mSum <= 0) continue;
+            const tau = Math.sqrt((r2 * Math.sqrt(r2)) / (G * mSum));
+            if (tau < minTau) minTau = tau;
+        }
+    }
+    return minTau;
+}
+
+export function stepBodiesInPlace(
+    state: SimBody[],
+    G: number,
+    softening: number,
+    dt: number,
+    steps = 1
+): void {
+    const n = state.length;
+    if (n === 0 || steps <= 0 || dt === 0) return;
+
+    const buf = ensureScratch(n);
+    const { bx, by, bvx, bvy, bm, tx, ty, tvx2, tvy2, tvx3, tvy3, tvx4, tvy4, k1x, k1y, k2x, k2y, k3x, k3y, k4x, k4y } =
+        buf;
+
+    for (let i = 0; i < n; i++) {
+        bx[i] = state[i].x;
+        by[i] = state[i].y;
+        bvx[i] = state[i].vx;
+        bvy[i] = state[i].vy;
+        bm[i] = state[i].m;
+    }
+
+    const eps2 = softening * softening;
+    const half = dt * 0.5;
+    const sixth = dt / 6;
+
+    for (let s = 0; s < steps; s++) {
+        computeAccelerations(n, bx, by, bm, G, eps2, k1x, k1y);
+        for (let i = 0; i < n; i++) {
+            tx[i] = bx[i] + bvx[i] * half;
+            ty[i] = by[i] + bvy[i] * half;
+            tvx2[i] = bvx[i] + k1x[i] * half;
+            tvy2[i] = bvy[i] + k1y[i] * half;
+        }
+
+        computeAccelerations(n, tx, ty, bm, G, eps2, k2x, k2y);
+        for (let i = 0; i < n; i++) {
+            tx[i] = bx[i] + tvx2[i] * half;
+            ty[i] = by[i] + tvy2[i] * half;
+            tvx3[i] = bvx[i] + k2x[i] * half;
+            tvy3[i] = bvy[i] + k2y[i] * half;
+        }
+
+        computeAccelerations(n, tx, ty, bm, G, eps2, k3x, k3y);
+        for (let i = 0; i < n; i++) {
+            tx[i] = bx[i] + tvx3[i] * dt;
+            ty[i] = by[i] + tvy3[i] * dt;
+            tvx4[i] = bvx[i] + k3x[i] * dt;
+            tvy4[i] = bvy[i] + k3y[i] * dt;
+        }
+
+        computeAccelerations(n, tx, ty, bm, G, eps2, k4x, k4y);
+        for (let i = 0; i < n; i++) {
+            bx[i] += sixth * (bvx[i] + 2 * tvx2[i] + 2 * tvx3[i] + tvx4[i]);
+            by[i] += sixth * (bvy[i] + 2 * tvy2[i] + 2 * tvy3[i] + tvy4[i]);
+            bvx[i] += sixth * (k1x[i] + 2 * k2x[i] + 2 * k3x[i] + k4x[i]);
+            bvy[i] += sixth * (k1y[i] + 2 * k2y[i] + 2 * k3y[i] + k4y[i]);
+        }
+    }
+
+    for (let i = 0; i < n; i++) {
+        state[i].x = bx[i];
+        state[i].y = by[i];
+        state[i].vx = bvx[i];
+        state[i].vy = bvy[i];
+    }
+}
+
+export function rk4Step(state: SimBody[], G: number, softening: number, dt: number): SimBody[] {
+    const next = state.map((b) => ({ ...b }));
+    stepBodiesInPlace(next, G, softening, dt, 1);
+    return next;
 }
 
 export const FALLBACK_PRESET: PresetDetail = {
@@ -38,68 +220,6 @@ export function toSimBodies(bodies: BodyDto[]): SimBody[] {
         y: b.positionY,
         vx: b.velocityX,
         vy: b.velocityY,
-    }));
-}
-
-function accelerations(state: SimBody[], G: number, eps2: number): Acceleration[] {
-    const acc: Acceleration[] = state.map(() => ({ ax: 0, ay: 0 }));
-    for (let i = 0; i < state.length; i++) {
-        for (let j = i + 1; j < state.length; j++) {
-            const dx = state[j].x - state[i].x;
-            const dy = state[j].y - state[i].y;
-            const r2 = dx * dx + dy * dy + eps2;
-            const inv = 1 / (r2 * Math.sqrt(r2));
-            const fi = G * state[j].m * inv;
-            const fj = G * state[i].m * inv;
-            acc[i].ax += dx * fi;
-            acc[i].ay += dy * fi;
-            acc[j].ax -= dx * fj;
-            acc[j].ay -= dy * fj;
-        }
-    }
-    return acc;
-}
-
-export function rk4Step(state: SimBody[], G: number, softening: number, dt: number): SimBody[] {
-    const eps2 = softening * softening;
-    const half = dt / 2;
-
-    const k1 = accelerations(state, G, eps2);
-    const s2 = state.map((b, i) => ({
-        m: b.m,
-        x: b.x + b.vx * half,
-        y: b.y + b.vy * half,
-        vx: b.vx + k1[i].ax * half,
-        vy: b.vy + k1[i].ay * half,
-    }));
-
-    const k2 = accelerations(s2, G, eps2);
-    const s3 = state.map((b, i) => ({
-        m: b.m,
-        x: b.x + s2[i].vx * half,
-        y: b.y + s2[i].vy * half,
-        vx: b.vx + k2[i].ax * half,
-        vy: b.vy + k2[i].ay * half,
-    }));
-
-    const k3 = accelerations(s3, G, eps2);
-    const s4 = state.map((b, i) => ({
-        m: b.m,
-        x: b.x + s3[i].vx * dt,
-        y: b.y + s3[i].vy * dt,
-        vx: b.vx + k3[i].ax * dt,
-        vy: b.vy + k3[i].ay * dt,
-    }));
-
-    const k4 = accelerations(s4, G, eps2);
-    const sixth = dt / 6;
-
-    return state.map((b, i) => ({
-        m: b.m,
-        x: b.x + sixth * (b.vx + 2 * s2[i].vx + 2 * s3[i].vx + s4[i].vx),
-        y: b.y + sixth * (b.vy + 2 * s2[i].vy + 2 * s3[i].vy + s4[i].vy),
-        vx: b.vx + sixth * (k1[i].ax + 2 * k2[i].ax + 2 * k3[i].ax + k4[i].ax),
-        vy: b.vy + sixth * (k1[i].ay + 2 * k2[i].ay + 2 * k3[i].ay + k4[i].ay),
     }));
 }
 
