@@ -1,36 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../api';
 import { FALLBACK_PRESET, isStateFinite, minPairTimescale, stepBodiesInPlace, toSimBodies } from '../utils/physics';
+import { classify } from '../utils/classifier';
+import { PRESETS } from '../utils/presets';
 
 const MIN_SPEED = 0.1;
 const MAX_SPEED = 5;
 const SPEED_STEP = 0.1;
 const MAX_BODIES = 3;
-const VELOCITY_SCALE = 0.6;
 const MAX_TRAIL_POINTS = 900;
 const TRAIL_SAMPLE_TIME = 0.01;
 const MAX_STEPS_PER_FRAME = 6000;
 const GRID_STEP = 28;
-const HANDLE_RADIUS = 6;
-const MENU_WIDTH = 248;
-const MENU_HEIGHT = 300;
 
-function readThemeColors() {
-    const styles = getComputedStyle(document.documentElement);
-    const pick = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
-    return {
-        bodies: [
-            pick('--body-color-1', '#E39A7B'),
-            pick('--body-color-2', '#FDD7A6'),
-            pick('--body-color-3', '#8FB3C9'),
-        ],
-        grid: pick('--grid-dot', '#1F2C38'),
-        origin: pick('--origin-color', '#2D4456'),
-        vector: pick('--vector-color', '#C9B9A0'),
-        ring: pick('--text-primary', '#F7E4C8'),
-        trailAlpha: Number(pick('--trail-alpha', '0.45')) || 0.45,
-    };
-}
+const OUTCOME_LABELS = {
+    collision: 'Столкновение',
+    ejection: 'Выброс',
+    stable: 'Стабильная',
+    unknown: '—',
+};
+
+const COLORS = ['#e74c3c', '#3498db', '#2ecc71'];
 
 function bodyRadius(mass) {
     return Math.max(6, Math.min(22, 5 + 4 * Math.cbrt(Math.max(mass, 0.0001))));
@@ -38,12 +27,6 @@ function bodyRadius(mass) {
 
 function cloneBodies(bodies) {
     return bodies.map((b) => ({ ...b }));
-}
-
-function computeUnitPx(bodies) {
-    const extent = bodies.reduce((max, b) => Math.max(max, Math.abs(b.x), Math.abs(b.y)), 0);
-    const safeExtent = extent > 0 ? extent : 1;
-    return (Math.min(window.innerWidth, window.innerHeight) * 0.28) / safeExtent;
 }
 
 function formatNumber(value) {
@@ -55,14 +38,6 @@ function formatSimTime(seconds) {
     return `${seconds.toFixed(2)} с`;
 }
 
-const MENU_FIELDS = [
-    { key: 'm', label: 'Масса', full: true },
-    { key: 'x', label: 'Позиция X' },
-    { key: 'y', label: 'Позиция Y' },
-    { key: 'vx', label: 'Скорость X' },
-    { key: 'vy', label: 'Скорость Y' },
-];
-
 function BodyMenu({ menu, onApply, onDelete, onClose }) {
     const [drafts, setDrafts] = useState(() => ({
         m: formatNumber(menu.body.m),
@@ -72,142 +47,73 @@ function BodyMenu({ menu, onApply, onDelete, onClose }) {
         vy: formatNumber(menu.body.vy),
     }));
 
-    const isValid = (key, raw) => {
-        const value = Number(raw.replace(',', '.'));
-        if (raw.trim() === '' || !Number.isFinite(value)) return false;
-        if (key === 'm' && value <= 0) return false;
-        return true;
-    };
-
     const handleChange = (key, raw) => {
         setDrafts((prev) => ({ ...prev, [key]: raw }));
-        if (isValid(key, raw)) {
-            onApply(menu.index, { [key]: Number(raw.replace(',', '.')) });
+        const value = Number(raw.replace(',', '.'));
+        if (raw.trim() !== '' && Number.isFinite(value) && (key !== 'm' || value > 0)) {
+            onApply(menu.index, { [key]: value });
         }
     };
 
-    const left = Math.min(Math.max(12, menu.x), window.innerWidth - MENU_WIDTH - 12);
-    const top = Math.min(Math.max(80, menu.y), window.innerHeight - MENU_HEIGHT - 12);
-
     return (
-        <div
-            className="holst-ui body-menu"
-            style={{ left, top }}
+        <div 
+            className="body-menu" 
+            style={{ left: Math.min(menu.x, window.innerWidth - 240), top: Math.min(menu.y, window.innerHeight - 300) }} 
             onPointerDown={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
         >
             <div className="body-menu-header">
-                <span className="body-menu-title">
-                    <span className="body-swatch" style={{ background: menu.color }} />
-                    Тело {menu.index + 1}
-                </span>
-                <button type="button" className="body-menu-close" onClick={onClose} aria-label="Закрыть">
-                    ×
-                </button>
+                <span>Тело {menu.index + 1}</span>
+                <button onClick={onClose} style={{ padding: '0 5px' }}>X</button>
             </div>
-
             <div className="body-menu-grid">
-                {MENU_FIELDS.map((field) => (
-                    <div key={field.key} className={`body-menu-field ${field.full ? 'full' : ''}`}>
-                        <label htmlFor={`body-${menu.index}-${field.key}`}>{field.label}</label>
-                        <input
-                            id={`body-${menu.index}-${field.key}`}
-                            className={`input-sm ${isValid(field.key, drafts[field.key]) ? '' : 'is-invalid'}`}
-                            type="text"
-                            inputMode="decimal"
-                            value={drafts[field.key]}
-                            onChange={(e) => handleChange(field.key, e.target.value)}
-                        />
+                {['m', 'x', 'y', 'vx', 'vy'].map((key) => (
+                    <div key={key} className="body-menu-field">
+                        <label>{key === 'm' ? 'Масса' : key === 'x' ? 'X' : key === 'y' ? 'Y' : key === 'vx' ? 'Скор. X' : 'Скор. Y'}</label>
+                        <input type="text" value={drafts[key]} onChange={(e) => handleChange(key, e.target.value)} />
                     </div>
                 ))}
             </div>
-
             <div className="body-menu-actions">
-                <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => onDelete(menu.index)}>
-                    Удалить
-                </button>
-                <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
-                    Готово
-                </button>
+                <button onClick={() => onDelete(menu.index)}>Удалить</button>
+                <button onClick={onClose}>Готово</button>
             </div>
         </div>
     );
 }
 
-export function HolstCanvas({ theme }) {
+export function HolstCanvas() {
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
 
-    const [offset, setOffset] = useState({ x: 0, y: 0 });
-    const [scale, setScale] = useState(1);
     const [running, setRunning] = useState(false);
     const [speed, setSpeed] = useState(1);
-    const [config, setConfig] = useState({
-        title: FALLBACK_PRESET.title,
-        g: FALLBACK_PRESET.g,
-        softening: FALLBACK_PRESET.softening,
-        dt: FALLBACK_PRESET.dt,
-        source: 'loading',
-    });
+    const [outcome, setOutcome] = useState('unknown');
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState(null);
-    const [cursorMode, setCursorMode] = useState('pan');
 
     const timeTextRef = useRef(null);
-    const offsetRef = useRef(offset);
-    const scaleRef = useRef(scale);
     const runningRef = useRef(running);
     const speedRef = useRef(speed);
-    const configRef = useRef(config);
+    const configRef = useRef({ g: 1, softening: 0, dt: 0.0001 });
+    
     const stateRef = useRef(toSimBodies(FALLBACK_PRESET.bodies));
     const setupRef = useRef(toSimBodies(FALLBACK_PRESET.bodies));
-    const presetRef = useRef(FALLBACK_PRESET);
     const trailsRef = useRef([[], [], []]);
     const simTimeRef = useRef(0);
     const trailClockRef = useRef(0);
-    const unitPxRef = useRef(180);
-    const colorsRef = useRef(null);
+    
     const dragRef = useRef({ kind: 'none' });
     const selectedRef = useRef(null);
-    const menuCounterRef = useRef(0);
 
-    useEffect(() => {
-        offsetRef.current = offset;
-    }, [offset]);
-
-    useEffect(() => {
-        scaleRef.current = scale;
-    }, [scale]);
-
-    useEffect(() => {
-        runningRef.current = running;
-    }, [running]);
-
-    useEffect(() => {
-        speedRef.current = speed;
-    }, [speed]);
-
-    useEffect(() => {
-        configRef.current = config;
-    }, [config]);
-
-    useEffect(() => {
-        colorsRef.current = readThemeColors();
-    }, [theme]);
-
-    useEffect(() => {
-        selectedRef.current = menu ? menu.index : null;
-    }, [menu]);
+    useEffect(() => { runningRef.current = running; }, [running]);
+    useEffect(() => { speedRef.current = speed; }, [speed]);
+    useEffect(() => { selectedRef.current = menu ? menu.index : null; }, [menu]);
 
     const syncTimeText = useCallback(() => {
-        if (timeTextRef.current) {
-            timeTextRef.current.textContent = formatSimTime(simTimeRef.current);
-        }
+        if (timeTextRef.current) timeTextRef.current.textContent = formatSimTime(simTimeRef.current);
     }, []);
 
-    useEffect(() => {
-        syncTimeText();
-    });
+    useEffect(() => { syncTimeText(); });
 
     const commitEdit = useCallback(() => {
         trailsRef.current = stateRef.current.map(() => []);
@@ -216,57 +122,21 @@ export function HolstCanvas({ theme }) {
         setupRef.current = cloneBodies(stateRef.current);
         syncTimeText();
         setBodyCount(stateRef.current.length);
+        setOutcome('unknown');
     }, [syncTimeText]);
 
-    const loadBodies = useCallback(
-        (bodies) => {
-            stateRef.current = cloneBodies(bodies);
-            setupRef.current = cloneBodies(bodies);
-            trailsRef.current = bodies.map(() => []);
-            simTimeRef.current = 0;
-            trailClockRef.current = 0;
-            if (bodies.length > 0) {
-                unitPxRef.current = computeUnitPx(bodies);
-            }
-            syncTimeText();
-            setBodyCount(bodies.length);
-        },
-        [syncTimeText]
-    );
-
-    const applyPreset = useCallback(
-        (preset, source) => {
-            presetRef.current = preset;
-            loadBodies(toSimBodies(preset.bodies));
-            setConfig({
-                title: preset.title,
-                g: preset.g,
-                softening: preset.softening,
-                dt: preset.dt,
-                source,
-            });
-        },
-        [loadBodies]
-    );
-
-    useEffect(() => {
-        let cancelled = false;
-        const load = async () => {
-            const list = await api.getPublicPresets();
-            for (const item of list) {
-                const detail = await api.getPresetById(item.id);
-                if (detail) {
-                    if (!cancelled) applyPreset(detail, 'server');
-                    return;
-                }
-            }
-            if (!cancelled) applyPreset(FALLBACK_PRESET, 'demo');
-        };
-        load();
-        return () => {
-            cancelled = true;
-        };
-    }, [applyPreset]);
+    const setNewBodies = useCallback((bodies, g, softening, dt) => {
+        stateRef.current = cloneBodies(bodies);
+        setupRef.current = cloneBodies(bodies);
+        trailsRef.current = bodies.map(() => []);
+        simTimeRef.current = 0;
+        trailClockRef.current = 0;
+        configRef.current = { g, softening, dt };
+        syncTimeText();
+        setBodyCount(bodies.length);
+        setOutcome('unknown');
+        setRunning(false);
+    }, [syncTimeText]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -276,48 +146,40 @@ export function HolstCanvas({ theme }) {
 
         let raf = 0;
         let lastTime = performance.now();
-        let cachedGridScale = -1;
-        let cachedGridColor = '';
-        let gridPattern = null;
-        const tileSize = 64;
-        const tileCanvas = document.createElement('canvas');
-        tileCanvas.width = tileSize;
-        tileCanvas.height = tileSize;
-        const tileCtx = tileCanvas.getContext('2d');
+        let cachedWidth = 0;
+        let cachedHeight = 0;
 
         const resize = () => {
+            const rect = canvas.parentElement.getBoundingClientRect();
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            canvas.width = Math.floor(window.innerWidth * dpr);
-            canvas.height = Math.floor(window.innerHeight * dpr);
+            canvas.width = Math.floor(rect.width * dpr);
+            canvas.height = Math.floor(rect.height * dpr);
+            cachedWidth = rect.width;
+            cachedHeight = rect.height;
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         };
-
         resize();
         window.addEventListener('resize', resize);
 
         const step = (realDt) => {
             const cfg = configRef.current;
             const state = stateRef.current;
-            if (!runningRef.current || state.length !== MAX_BODIES || realDt <= 0) {
-                return;
-            }
+            if (!runningRef.current || state.length !== MAX_BODIES || realDt <= 0) return;
 
             for (let i = 0; i < state.length; i++) {
                 const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
-                if (trail.length === 0) {
-                    trail.push({ x: state[i].x, y: state[i].y });
-                }
+                if (trail.length === 0) trail.push({ x: state[i].x, y: state[i].y });
             }
 
             let remaining = realDt * speedRef.current;
-            const baseMaxDt = Math.max(0.0002, Math.min(cfg.dt > 0 ? cfg.dt : 0.001, 0.002));
+            const baseMaxDt = Math.max(0.00005, Math.min(cfg.dt > 0 ? cfg.dt : 0.001, 0.005));
             let stepBudget = MAX_STEPS_PER_FRAME;
 
             while (remaining > 1e-12 && stepBudget > 0) {
                 const tillTrail = Math.max(1e-6, TRAIL_SAMPLE_TIME - trailClockRef.current);
                 const chunkDt = Math.min(remaining, tillTrail);
                 const minTau = minPairTimescale(state, cfg.g, cfg.softening);
-                const safeMaxDt = Math.min(baseMaxDt, Math.max(0.00002, 0.04 * minTau));
+                const safeMaxDt = Math.min(baseMaxDt, Math.max(0.00001, 0.04 * minTau));
                 const neededSteps = Math.max(1, Math.ceil(chunkDt / safeMaxDt));
                 const subSteps = Math.min(stepBudget, neededSteps);
                 const stepDt = chunkDt / neededSteps;
@@ -345,77 +207,56 @@ export function HolstCanvas({ theme }) {
                 return;
             }
 
+            setOutcome(classify(state, cfg.g, cfg.softening));
             syncTimeText();
         };
 
         const draw = () => {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            const cx = width / 2 + offsetRef.current.x;
-            const cy = height / 2 + offsetRef.current.y;
-            const k = unitPxRef.current * scaleRef.current;
-            const colors = colorsRef.current || readThemeColors();
+            const width = cachedWidth;
+            const height = cachedHeight;
+            const cx = width / 2;
+            const cy = height / 2;
+            const k = 120;
             const editing = !runningRef.current;
 
             ctx.clearRect(0, 0, width, height);
 
-            const gridStep = GRID_STEP * scaleRef.current;
-            if (gridStep >= 8 && tileCtx) {
-                if (cachedGridScale !== scaleRef.current || cachedGridColor !== colors.grid) {
-                    cachedGridScale = scaleRef.current;
-                    cachedGridColor = colors.grid;
-                    const dotR = Math.max(1, 1.2 * Math.min(scaleRef.current, 1.4));
-                    const tileR = (dotR * tileSize) / gridStep;
-                    tileCtx.clearRect(0, 0, tileSize, tileSize);
-                    tileCtx.fillStyle = colors.grid;
-                    tileCtx.beginPath();
-                    tileCtx.arc(tileSize * 0.5, tileSize * 0.5, tileR, 0, Math.PI * 2);
-                    tileCtx.fill();
-                    gridPattern = ctx.createPattern(tileCanvas, 'repeat');
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            const gridStep = GRID_STEP;
+            if (gridStep > 5) {
+                const startX = ((cx % gridStep) + gridStep) % gridStep;
+                const startY = ((cy % gridStep) + gridStep) % gridStep;
+                ctx.beginPath();
+                for (let x = startX; x < width; x += gridStep) {
+                    ctx.moveTo(x, 0); ctx.lineTo(x, height);
                 }
-                if (gridPattern) {
-                    const startX = ((cx % gridStep) + gridStep) % gridStep;
-                    const startY = ((cy % gridStep) + gridStep) % gridStep;
-                    const scaleRatio = gridStep / tileSize;
-                    gridPattern.setTransform({
-                        a: scaleRatio,
-                        b: 0,
-                        c: 0,
-                        d: scaleRatio,
-                        e: startX - gridStep * 0.5,
-                        f: startY - gridStep * 0.5,
-                    });
-                    ctx.fillStyle = gridPattern;
-                    ctx.fillRect(0, 0, width, height);
+                for (let y = startY; y < height; y += gridStep) {
+                    ctx.moveTo(0, y); ctx.lineTo(width, y);
                 }
+                ctx.stroke();
             }
 
-            ctx.strokeStyle = colors.origin;
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(cx - 8, cy);
-            ctx.lineTo(cx + 8, cy);
-            ctx.moveTo(cx, cy - 8);
-            ctx.lineTo(cx, cy + 8);
+            ctx.moveTo(cx, 0); ctx.lineTo(cx, height);
+            ctx.moveTo(0, cy); ctx.lineTo(width, cy);
             ctx.stroke();
 
-            ctx.lineWidth = 1.5;
-            ctx.lineCap = 'round';
+            ctx.lineWidth = 2;
             ctx.lineJoin = 'round';
-            ctx.globalAlpha = colors.trailAlpha;
             trailsRef.current.forEach((trail, i) => {
                 const body = stateRef.current[i];
-                if (!body || trail.length < 1) return;
-                ctx.strokeStyle = colors.bodies[i % colors.bodies.length];
+                if (!body || trail.length < 2) return;
+                ctx.strokeStyle = COLORS[i % COLORS.length];
                 ctx.beginPath();
                 ctx.moveTo(cx + trail[0].x * k, cy - trail[0].y * k);
                 for (let p = 1; p < trail.length; p++) {
                     ctx.lineTo(cx + trail[p].x * k, cy - trail[p].y * k);
                 }
-                ctx.lineTo(cx + body.x * k, cy - body.y * k);
                 ctx.stroke();
             });
-            ctx.globalAlpha = 1;
 
             stateRef.current.forEach((b, i) => {
                 const sx = cx + b.x * k;
@@ -423,51 +264,42 @@ export function HolstCanvas({ theme }) {
                 const r = bodyRadius(b.m);
 
                 if (editing) {
-                    const tipX = sx + b.vx * VELOCITY_SCALE * k;
-                    const tipY = sy - b.vy * VELOCITY_SCALE * k;
+                    const tipX = sx + b.vx * 0.6 * k;
+                    const tipY = sy - b.vy * 0.6 * k;
                     const len = Math.hypot(tipX - sx, tipY - sy);
-
                     if (len > r + 4) {
                         const angle = Math.atan2(tipY - sy, tipX - sx);
-                        const head = 9;
-                        ctx.strokeStyle = colors.vector;
-                        ctx.fillStyle = colors.vector;
-                        ctx.lineWidth = 1.5;
+                        const head = 8;
+                        ctx.strokeStyle = '#000';
+                        ctx.fillStyle = '#000';
+                        ctx.lineWidth = 1;
                         ctx.beginPath();
                         ctx.moveTo(sx, sy);
-                        ctx.lineTo(tipX - Math.cos(angle) * head * 0.6, tipY - Math.sin(angle) * head * 0.6);
+                        ctx.lineTo(tipX, tipY);
                         ctx.stroke();
                         ctx.beginPath();
                         ctx.moveTo(tipX, tipY);
-                        ctx.lineTo(
-                            tipX - head * Math.cos(angle - Math.PI / 7),
-                            tipY - head * Math.sin(angle - Math.PI / 7)
-                        );
-                        ctx.lineTo(
-                            tipX - head * Math.cos(angle + Math.PI / 7),
-                            tipY - head * Math.sin(angle + Math.PI / 7)
-                        );
+                        ctx.lineTo(tipX - head * Math.cos(angle - Math.PI / 6), tipY - head * Math.sin(angle - Math.PI / 6));
+                        ctx.lineTo(tipX - head * Math.cos(angle + Math.PI / 6), tipY - head * Math.sin(angle + Math.PI / 6));
                         ctx.closePath();
                         ctx.fill();
                     }
-
-                    const handle = getHandlePosition(sx, sy, tipX, tipY, r);
-                    ctx.fillStyle = colors.vector;
-                    ctx.beginPath();
-                    ctx.arc(handle.x, handle.y, HANDLE_RADIUS * 0.6, 0, Math.PI * 2);
-                    ctx.fill();
                 }
 
-                ctx.fillStyle = colors.bodies[i % colors.bodies.length];
+                ctx.fillStyle = COLORS[i % COLORS.length];
                 ctx.beginPath();
                 ctx.arc(sx, sy, r, 0, Math.PI * 2);
                 ctx.fill();
 
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
                 if (selectedRef.current === i) {
-                    ctx.strokeStyle = colors.ring;
+                    ctx.strokeStyle = 'blue';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.arc(sx, sy, r + 5, 0, Math.PI * 2);
+                    ctx.arc(sx, sy, r + 3, 0, Math.PI * 2);
                     ctx.stroke();
                 }
             });
@@ -482,76 +314,43 @@ export function HolstCanvas({ theme }) {
         };
 
         raf = requestAnimationFrame(frame);
-
         return () => {
             cancelAnimationFrame(raf);
             window.removeEventListener('resize', resize);
         };
     }, [syncTimeText]);
 
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-
-        const onWheel = (e) => {
-            if (e.target.closest('.holst-ui')) return;
-            e.preventDefault();
-            const cursorX = e.clientX - window.innerWidth / 2;
-            const cursorY = e.clientY - window.innerHeight / 2;
-            const prevScale = scaleRef.current;
-            const nextScale = Math.min(4, Math.max(0.2, Number((prevScale * (e.deltaY < 0 ? 1.08 : 0.92)).toFixed(3))));
-            const ratio = nextScale / prevScale;
-            const prev = offsetRef.current;
-            const nextOffset = {
-                x: cursorX - (cursorX - prev.x) * ratio,
-                y: cursorY - (cursorY - prev.y) * ratio,
-            };
-            offsetRef.current = nextOffset;
-            scaleRef.current = nextScale;
-            setOffset(nextOffset);
-            setScale(nextScale);
-        };
-
-        container.addEventListener('wheel', onWheel, { passive: false });
-        return () => container.removeEventListener('wheel', onWheel);
-    }, []);
+    const getMousePos = (e) => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
 
     const toScreen = (b) => {
-        const k = unitPxRef.current * scaleRef.current;
+        const width = canvasRef.current.getBoundingClientRect().width;
+        const height = canvasRef.current.getBoundingClientRect().height;
+        const k = 120;
         return {
-            x: window.innerWidth / 2 + offsetRef.current.x + b.x * k,
-            y: window.innerHeight / 2 + offsetRef.current.y - b.y * k,
+            x: width / 2 + b.x * k,
+            y: height / 2 - b.y * k,
         };
     };
 
-    const toWorld = (sx, sy) => {
-        const k = unitPxRef.current * scaleRef.current;
+    const toWorld = (mousePos) => {
+        const width = canvasRef.current.getBoundingClientRect().width;
+        const height = canvasRef.current.getBoundingClientRect().height;
+        const k = 120;
         return {
-            x: (sx - window.innerWidth / 2 - offsetRef.current.x) / k,
-            y: -(sy - window.innerHeight / 2 - offsetRef.current.y) / k,
+            x: (mousePos.x - width / 2) / k,
+            y: -(mousePos.y - height / 2) / k,
         };
     };
 
-    const hitBody = (sx, sy) => {
+    const hitBody = (mousePos) => {
         const bodies = stateRef.current;
         for (let i = bodies.length - 1; i >= 0; i--) {
             const p = toScreen(bodies[i]);
-            if (Math.hypot(sx - p.x, sy - p.y) <= Math.max(bodyRadius(bodies[i].m), 10) + 2) {
-                return i;
-            }
-        }
-        return null;
-    };
-
-    const hitHandle = (sx, sy) => {
-        const bodies = stateRef.current;
-        const k = unitPxRef.current * scaleRef.current;
-        for (let i = bodies.length - 1; i >= 0; i--) {
-            const p = toScreen(bodies[i]);
-            const tipX = p.x + bodies[i].vx * VELOCITY_SCALE * k;
-            const tipY = p.y - bodies[i].vy * VELOCITY_SCALE * k;
-            const handle = getHandlePosition(p.x, p.y, tipX, tipY, bodyRadius(bodies[i].m));
-            if (Math.hypot(sx - handle.x, sy - handle.y) <= HANDLE_RADIUS + 5) {
+            const clickRadius = Math.max(bodyRadius(bodies[i].m) + 20, 30);
+            if (Math.hypot(mousePos.x - p.x, mousePos.y - p.y) <= clickRadius) {
                 return i;
             }
         }
@@ -559,98 +358,64 @@ export function HolstCanvas({ theme }) {
     };
 
     const handlePointerDown = (e) => {
-        if (e.target.closest('.holst-ui')) return;
+        if (e.target.closest('.body-menu')) return;
         if (e.button !== 0 && e.button !== 1) return;
-
         setMenu(null);
         e.currentTarget.setPointerCapture(e.pointerId);
 
-        if (e.button === 0 && !runningRef.current) {
-            const handleIndex = hitHandle(e.clientX, e.clientY);
-            if (handleIndex !== null) {
-                dragRef.current = { kind: 'velocity', index: handleIndex };
-                setCursorMode('grab');
-                return;
-            }
+        const mousePos = getMousePos(e);
 
-            const bodyIndex = hitBody(e.clientX, e.clientY);
+        if (e.button === 0 && !runningRef.current) {
+            const bodyIndex = hitBody(mousePos);
             if (bodyIndex !== null) {
-                const world = toWorld(e.clientX, e.clientY);
+                const world = toWorld(mousePos);
                 const b = stateRef.current[bodyIndex];
                 dragRef.current = { kind: 'move', index: bodyIndex, dx: b.x - world.x, dy: b.y - world.y };
-                setCursorMode('grab');
                 return;
             }
-
             if (stateRef.current.length < MAX_BODIES) {
-                const world = toWorld(e.clientX, e.clientY);
+                const world = toWorld(mousePos);
                 stateRef.current = [...stateRef.current, { m: 1, x: world.x, y: world.y, vx: 0, vy: 0 }];
-                dragRef.current = { kind: 'velocity', index: stateRef.current.length - 1 };
                 commitEdit();
-                setCursorMode('grab');
                 return;
             }
         }
-
-        dragRef.current = {
-            kind: 'pan',
-            startX: e.clientX,
-            startY: e.clientY,
-            ox: offsetRef.current.x,
-            oy: offsetRef.current.y,
-        };
-        setCursorMode('grab');
     };
 
     const handlePointerMove = (e) => {
         const drag = dragRef.current;
         if (drag.kind === 'none') return;
 
-        if (drag.kind === 'pan') {
-            const next = {
-                x: drag.ox + (e.clientX - drag.startX),
-                y: drag.oy + (e.clientY - drag.startY),
-            };
-            offsetRef.current = next;
-            setOffset(next);
-            return;
-        }
-
-        const world = toWorld(e.clientX, e.clientY);
-        stateRef.current = stateRef.current.map((b, i) => {
-            if (i !== drag.index) return b;
-            if (drag.kind === 'move') {
+        if (drag.kind === 'move') {
+            const mousePos = getMousePos(e);
+            const world = toWorld(mousePos);
+            stateRef.current = stateRef.current.map((b, i) => {
+                if (i !== drag.index) return b;
                 return { ...b, x: world.x + drag.dx, y: world.y + drag.dy };
-            }
-            return { ...b, vx: (world.x - b.x) / VELOCITY_SCALE, vy: (world.y - b.y) / VELOCITY_SCALE };
-        });
-        commitEdit();
+            });
+            commitEdit();
+        }
     };
 
     const handlePointerUp = (e) => {
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-            e.currentTarget.releasePointerCapture(e.pointerId);
-        }
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
         dragRef.current = { kind: 'none' };
-        setCursorMode(!runningRef.current && stateRef.current.length < MAX_BODIES ? 'place' : 'pan');
     };
 
     const handleDoubleClick = (e) => {
-        if (e.target.closest('.holst-ui')) return;
-        const index = hitBody(e.clientX, e.clientY);
+        if (e.target.closest('.body-menu')) return;
+        const mousePos = getMousePos(e);
+        const index = hitBody(mousePos);
         if (index === null) return;
 
         runningRef.current = false;
         setRunning(false);
         const p = toScreen(stateRef.current[index]);
-        const colors = colorsRef.current || readThemeColors();
-        menuCounterRef.current += 1;
+        const rect = canvasRef.current.getBoundingClientRect();
         setMenu({
             index,
-            openId: menuCounterRef.current,
-            x: p.x + bodyRadius(stateRef.current[index].m) + 16,
-            y: p.y - 40,
-            color: colors.bodies[index % colors.bodies.length],
+            x: p.x + rect.left + 20,
+            y: p.y + rect.top + 20,
             body: { ...stateRef.current[index] },
         });
     };
@@ -664,189 +429,66 @@ export function HolstCanvas({ theme }) {
         stateRef.current = stateRef.current.filter((_, i) => i !== index);
         commitEdit();
         setMenu(null);
-        setCursorMode('place');
     };
-
-    const handleToggleRun = () => {
-        if (!running && stateRef.current.length !== MAX_BODIES) return;
-        setMenu(null);
-        const next = !running;
-        runningRef.current = next;
-        setRunning(next);
-        setCursorMode(next ? 'pan' : stateRef.current.length < MAX_BODIES ? 'place' : 'pan');
-    };
-
-    const handleResetSim = () => {
-        runningRef.current = false;
-        setRunning(false);
-        setMenu(null);
-        stateRef.current = cloneBodies(setupRef.current);
-        trailsRef.current = stateRef.current.map(() => []);
-        simTimeRef.current = 0;
-        trailClockRef.current = 0;
-        syncTimeText();
-        setBodyCount(stateRef.current.length);
-    };
-
-    const handleRestorePreset = () => {
-        runningRef.current = false;
-        setRunning(false);
-        setMenu(null);
-        loadBodies(toSimBodies(presetRef.current.bodies));
-        setCursorMode('pan');
-    };
-
-    const handleClear = () => {
-        runningRef.current = false;
-        setRunning(false);
-        setMenu(null);
-        stateRef.current = [];
-        commitEdit();
-        setCursorMode('place');
-    };
-
-    const adjustZoom = (delta) => {
-        const nextScale = Math.min(4, Math.max(0.2, Number((scale + delta).toFixed(2))));
-        const ratio = nextScale / scale;
-        setOffset((prev) => ({ x: prev.x * ratio, y: prev.y * ratio }));
-        setScale(nextScale);
-    };
-
-    const resetView = () => {
-        setOffset({ x: 0, y: 0 });
-        setScale(1);
-    };
-
-    const handleSpeedChange = (nextSpeed) => {
-        speedRef.current = nextSpeed;
-        setSpeed(nextSpeed);
-    };
-
-    const sourceLabel = config.source === 'loading' ? 'загрузка' : config.source === 'server' ? 'из базы' : 'демо';
 
     return (
-        <div
-            ref={containerRef}
-            className={`holst-viewport mode-${cursorMode}`}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-            onDoubleClick={handleDoubleClick}
-        >
-            <canvas ref={canvasRef} className="holst-sim-canvas" />
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none' }}>
+            <div className="canvas-container" 
+                 ref={containerRef}
+                 onPointerDown={handlePointerDown}
+                 onPointerMove={handlePointerMove}
+                 onPointerUp={handlePointerUp}
+                 onPointerCancel={handlePointerUp}
+                 onDoubleClick={handleDoubleClick}>
+                <canvas ref={canvasRef} className="holst-sim-canvas" />
+                {menu && (
+                    <BodyMenu
+                        menu={menu}
+                        onApply={handleApplyBody}
+                        onDelete={handleDeleteBody}
+                        onClose={() => setMenu(null)}
+                    />
+                )}
+            </div>
 
-            {menu && (
-                <BodyMenu
-                    key={menu.openId}
-                    menu={menu}
-                    onApply={handleApplyBody}
-                    onDelete={handleDeleteBody}
-                    onClose={() => setMenu(null)}
-                />
-            )}
+            <div className="sim-panel">
+                <div className="sim-row">
+                    <button className="btn-primary" onClick={() => {
+                        if (bodyCount === MAX_BODIES) setRunning(!running);
+                    }} disabled={bodyCount !== MAX_BODIES}>
+                        {running ? 'Пауза' : 'Старт'}
+                    </button>
+                    <button onClick={() => {
+                        setRunning(false);
+                        stateRef.current = cloneBodies(setupRef.current);
+                        trailsRef.current = stateRef.current.map(() => []);
+                        simTimeRef.current = 0;
+                        setOutcome('unknown');
+                        syncTimeText();
+                    }}>Сброс</button>
+                    <button onClick={() => {
+                        setRunning(false);
+                        stateRef.current = [];
+                        commitEdit();
+                    }}>Очистить</button>
 
-            <div className="holst-bottom-dock">
-                <div className="holst-dock-spacer" aria-hidden="true" />
-
-                <div className="holst-ui sim-panel" onPointerDown={(e) => e.stopPropagation()}>
-                    <div className="sim-panel-info">
-                        <div className="sim-preset-line">
-                            <span className="sim-preset-name">{config.title}</span>
-                            <span className="sim-preset-source">{sourceLabel}</span>
-                        </div>
-                    </div>
-
-                    <div className="sim-panel-controls">
-                        <button
-                            type="button"
-                            className="sim-btn is-primary"
-                            onClick={handleToggleRun}
-                            disabled={!running && bodyCount !== MAX_BODIES}
-                            aria-label={running ? 'Пауза' : 'Старт'}
-                            title={running ? 'Пауза' : bodyCount !== MAX_BODIES ? 'Нужно 3 тела' : 'Старт'}
-                        >
-                            {running ? (
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                    <rect x="6" y="5" width="4" height="14" />
-                                    <rect x="14" y="5" width="4" height="14" />
-                                </svg>
-                            ) : (
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 5v14l12-7z" />
-                                </svg>
-                            )}
-                        </button>
-                        <button type="button" className="sim-btn" onClick={handleResetSim} aria-label="Сброс" title="Вернуть к началу">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M3 12a9 9 0 1 0 3-6.7" />
-                                <polyline points="3 4 3 10 9 10" />
-                            </svg>
-                        </button>
-                        <button type="button" className="sim-btn" onClick={handleRestorePreset} aria-label="Пресет" title="Загрузить пресет заново">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="6" cy="16" r="3" />
-                                <circle cx="18" cy="16" r="3" />
-                                <circle cx="12" cy="6" r="3" />
-                            </svg>
-                        </button>
-                        <button type="button" className="sim-btn" onClick={handleClear} aria-label="Очистить" title="Убрать все тела">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="4 7 20 7" />
-                                <path d="M9 7V4h6v3" />
-                                <path d="M6 7l1 13h10l1-13" />
-                            </svg>
-                        </button>
-
-                        <span className="sim-divider" />
-
-                        <div className="sim-speed-control" title="Скорость времени">
-                            <input
-                                type="range"
-                                className="sim-speed-slider"
-                                min={MIN_SPEED}
-                                max={MAX_SPEED}
-                                step={SPEED_STEP}
-                                value={speed}
-                                onChange={(e) => handleSpeedChange(Number(e.target.value))}
-                                aria-label="Скорость времени"
-                            />
-                            <span className="sim-speed-value">{speed.toFixed(1)}×</span>
-                        </div>
-
-                        <span ref={timeTextRef} className="sim-time" />
-                    </div>
+                    <span style={{ marginLeft: '20px' }}>Исход: <b>{OUTCOME_LABELS[outcome]}</b></span>
+                    <span>Время: <span className="sim-time" ref={timeTextRef}>0.00 с</span></span>
                 </div>
 
-                <div className="holst-hud-slot">
-                    <div className="holst-ui holst-hud" onPointerDown={(e) => e.stopPropagation()}>
-                        <button type="button" className="holst-hud-btn" onClick={() => adjustZoom(-0.15)} aria-label="Отдалить">
-                            −
+                <div className="sim-row">
+                    <span className="sim-label">Скорость:</span>
+                    <input type="range" min={MIN_SPEED} max={MAX_SPEED} step={SPEED_STEP} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
+                    <span className="sim-value">{speed.toFixed(1)}x</span>
+                    
+                    <span className="sim-label" style={{ marginLeft: '20px' }}>Пресеты:</span>
+                    {PRESETS.map((p) => (
+                        <button key={p.name} onClick={() => setNewBodies(p.bodies, p.g, p.softening, p.dt)}>
+                            {p.name}
                         </button>
-                        <button type="button" className="holst-hud-scale" onClick={resetView} title="Сбросить масштаб и позицию">
-                            {Math.round(scale * 100)}%
-                        </button>
-                        <button type="button" className="holst-hud-btn" onClick={() => adjustZoom(0.15)} aria-label="Приблизить">
-                            +
-                        </button>
-                    </div>
+                    ))}
                 </div>
             </div>
         </div>
     );
-}
-
-function getHandlePosition(sx, sy, tipX, tipY, radius) {
-    const len = Math.hypot(tipX - sx, tipY - sy);
-    const minLen = radius + 12;
-    if (len >= minLen) {
-        return { x: tipX, y: tipY };
-    }
-    if (len < 0.001) {
-        return { x: sx + minLen, y: sy };
-    }
-    return {
-        x: sx + ((tipX - sx) / len) * minLen,
-        y: sy + ((tipY - sy) / len) * minLen,
-    };
 }
