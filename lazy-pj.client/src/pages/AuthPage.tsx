@@ -54,10 +54,6 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
     const [isDemoAdminAvailable, setIsDemoAdminAvailable] = useState<boolean>(false);
 
     useEffect(() => {
-        setMode(initialMode);
-    }, [initialMode]);
-
-    useEffect(() => {
         let cancelled = false;
         const verifyDemoAccounts = async () => {
             const [userOk, adminOk] = await Promise.all([

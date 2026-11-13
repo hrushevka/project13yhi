@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../api';
-import { RequestStatus } from '../types';
-import type { AdminRequestModel, AuthSession, RequestStatusCode } from '../types';
+import type { AuthSession } from '../types';
 import { translateErrorMessage, validators } from '../utils/validation';
 
 interface CabinetPageProps {
@@ -12,11 +11,9 @@ interface CabinetPageProps {
     onLogout?: () => void;
 }
 
-export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }: CabinetPageProps) {
-    const [requests, setRequests] = useState<AdminRequestModel[]>([]);
-    const [description, setDescription] = useState('');
-    const [creating, setCreating] = useState(false);
+const INVALID_STYLE = { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' };
 
+export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }: CabinetPageProps) {
     const [editName, setEditName] = useState(session.user.name);
     const [editEmail, setEditEmail] = useState(session.user.email);
     const [editPassword, setEditPassword] = useState(session.user.password || '');
@@ -24,62 +21,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
 
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
-    const [invalidField, setInvalidField] = useState<'description' | 'name' | 'email' | 'password' | null>(null);
-
-    const fetchMyRequests = useCallback(async () => {
-        const all = await api.getAllRequests();
-        const mine = all.filter(
-            (r) =>
-                r.userId === session.user.id ||
-                (r.userEmail || '').toLowerCase() === session.user.email.toLowerCase()
-        );
-        return mine;
-    }, [session.user.id, session.user.email]);
-
-    const loadMyRequests = useCallback(async () => {
-        const mine = await fetchMyRequests();
-        setRequests(mine);
-    }, [fetchMyRequests]);
-
-    useEffect(() => {
-        let active = true;
-        fetchMyRequests().then((mine) => {
-            if (active) {
-                setRequests(mine);
-            }
-        });
-        return () => {
-            active = false;
-        };
-    }, [fetchMyRequests]);
-
-    const handleCreateRequest = async (e: FormEvent) => {
-        e.preventDefault();
-        setInvalidField(null);
-
-        const descError = validators.validateDescription(description);
-        if (descError) {
-            setInvalidField('description');
-            setNotice(descError);
-            return;
-        }
-
-        setCreating(true);
-        setNotice(null);
-        try {
-            await api.createRequest({
-                userId: session.user.id,
-                description: description.trim(),
-            });
-            setDescription('');
-            await loadMyRequests();
-            setNotice('Заявка успешно создана и передана на рассмотрение.');
-        } catch (err) {
-            setNotice(translateErrorMessage(err));
-        } finally {
-            setCreating(false);
-        }
-    };
+    const [invalidField, setInvalidField] = useState<'name' | 'email' | 'password' | null>(null);
 
     const handleSaveProfile = async (e: FormEvent) => {
         e.preventDefault();
@@ -114,10 +56,8 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
                 email: editEmail.trim(),
                 password: editPassword || session.user.password || 'password123',
             });
-            const updatedSession = api.getSession();
-            onSessionUpdate(updatedSession);
-            await loadMyRequests();
-            setNotice('Профиль успешно обновлён (PUT /api/auth/edit).');
+            onSessionUpdate(api.getSession());
+            setNotice('Профиль успешно обновлён.');
         } catch (err) {
             setNotice(translateErrorMessage(err));
         } finally {
@@ -129,20 +69,6 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
         await api.deleteAccount(session.user.id);
         onSessionUpdate(null);
     };
-
-    const renderStatusBadge = (status: RequestStatusCode) => {
-        if (status === RequestStatus.Approve) {
-            return <span className="status-pill status-approved">Одобрена</span>;
-        }
-        if (status === RequestStatus.Denied) {
-            return <span className="status-pill status-denied">Отклонена</span>;
-        }
-        return <span className="status-pill status-pending">На рассмотрении</span>;
-    };
-
-    const totalCount = requests.length;
-    const approvedCount = requests.filter((r) => r.approved === RequestStatus.Approve).length;
-    const pendingCount = requests.filter((r) => r.approved === RequestStatus.Pending).length;
 
     const initials = (session.user.name || session.user.email || 'U')
         .split(' ')
@@ -158,9 +84,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
                     <div className="profile-avatar">{initials}</div>
                     <div className="profile-meta">
                         <h1>{session.user.name}</h1>
-                        <p>
-                            {session.user.email} • ID #{session.user.id}
-                        </p>
+                        <p>{session.user.email}</p>
                     </div>
                 </div>
 
@@ -191,84 +115,9 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
                 </div>
             )}
 
-            <div className="stats-grid">
-                <div className="stat-card">
-                    <div className="stat-label">Мои заявки</div>
-                    <div className="stat-value">{totalCount}</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-label">Одобрено</div>
-                    <div className="stat-value">{approvedCount}</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-label">В ожидании</div>
-                    <div className="stat-value">{pendingCount}</div>
-                </div>
-            </div>
-
             <div className="cabinet-grid">
                 <div className="glass-card">
-                    <h2 className="section-title">Новая заявка</h2>
-                    <p className="section-subtitle">
-                        Опишите задачу, доступ или ресурс, который необходимо согласовать с администратором.
-                    </p>
-
-                    <form className="form-stack" onSubmit={handleCreateRequest} noValidate>
-                        <div className="field-group">
-                            <label className="field-label" htmlFor="req-desc">
-                                Описание заявки
-                            </label>
-                            <textarea
-                                id="req-desc"
-                                className={`textarea-control ${invalidField === 'description' ? 'validation-shake' : ''}`}
-                                placeholder="Например: Прошу предоставить доступ к тестовому серверу аналитики..."
-                                value={description}
-                                onChange={(e) => {
-                                    setDescription(e.target.value);
-                                    if (invalidField === 'description') setInvalidField(null);
-                                }}
-                                style={
-                                    invalidField === 'description'
-                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
-                                        : undefined
-                                }
-                            />
-                        </div>
-                        <button type="submit" className="btn btn-primary" disabled={creating}>
-                            {creating ? 'Отправка...' : 'Отправить заявку'}
-                        </button>
-                    </form>
-
-                    <div style={{ marginTop: '28px' }}>
-                        <h3 className="section-title">История моих заявок</h3>
-                        {requests.length === 0 ? (
-                            <div className="empty-state">
-                                У вас пока нет созданных заявок. Создайте первую заявку выше!
-                            </div>
-                        ) : (
-                            <div className="request-list">
-                                {requests.map((req) => (
-                                    <div key={req.id} className="request-item">
-                                        <div className="request-item-header">
-                                            <div>
-                                                <span className="request-id">Заявка #{req.id}</span>
-                                                <span className="request-date" style={{ marginLeft: 10 }}>
-                                                    {new Date(req.creationTime).toLocaleString('ru-RU', {
-                                                        day: '2-digit',
-                                                        month: 'short',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}
-                                                </span>
-                                            </div>
-                                            {renderStatusBadge(req.approved)}
-                                        </div>
-                                        <p className="request-desc">{req.description}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <h2 className="section-title">Мои присеты</h2>
                 </div>
 
                 <div className="glass-card">
@@ -291,11 +140,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
                                     setEditName(e.target.value);
                                     if (invalidField === 'name') setInvalidField(null);
                                 }}
-                                style={
-                                    invalidField === 'name'
-                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
-                                        : undefined
-                                }
+                                style={invalidField === 'name' ? INVALID_STYLE : undefined}
                             />
                         </div>
 
@@ -312,11 +157,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
                                     setEditEmail(e.target.value);
                                     if (invalidField === 'email') setInvalidField(null);
                                 }}
-                                style={
-                                    invalidField === 'email'
-                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
-                                        : undefined
-                                }
+                                style={invalidField === 'email' ? INVALID_STYLE : undefined}
                             />
                         </div>
 
@@ -334,11 +175,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }:
                                     setEditPassword(e.target.value);
                                     if (invalidField === 'password') setInvalidField(null);
                                 }}
-                                style={
-                                    invalidField === 'password'
-                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
-                                        : undefined
-                                }
+                                style={invalidField === 'password' ? INVALID_STYLE : undefined}
                             />
                         </div>
 

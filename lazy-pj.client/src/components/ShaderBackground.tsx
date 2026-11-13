@@ -27,7 +27,7 @@ void main() {
     float aspect = u_resolution.x / max(u_resolution.y, 1.0);
     vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
 
-    vec3 darkCosmos = vec3(0.082, 0.125, 0.169);
+    vec3 darkCosmos = vec3(0.047, 0.075, 0.102);
     vec3 darkNavy = vec3(0.176, 0.267, 0.337);
     vec3 darkSage = vec3(0.455, 0.467, 0.424);
     vec3 darkCream = vec3(0.992, 0.843, 0.651);
@@ -40,7 +40,7 @@ void main() {
     vec3 lightSage = vec3(0.545, 0.588, 0.525);
     vec3 lightSlate = vec3(0.345, 0.463, 0.549);
 
-    vec3 baseDark = mix(darkCosmos, darkNavy, 0.42 * uv.y + 0.15 * (1.0 - uv.x));
+    vec3 baseDark = mix(darkCosmos, darkNavy, 0.16 * uv.y + 0.06 * (1.0 - uv.x));
     vec3 baseLight = mix(lightAlabaster, lightLinen, 0.35 * (1.0 - uv.y) + 0.15 * uv.x);
     vec3 color = mix(baseDark, baseLight, u_lightMode);
 
@@ -72,7 +72,7 @@ void main() {
         dotColorLight = mix(dotColorLight, mix(lightSage, lightSlate, hash1(fi * 2.9)), 0.42);
 
         vec3 dotCol = mix(dotColorDark, dotColorLight, u_lightMode);
-        float intensity = mix(0.075, 0.075, u_lightMode);
+        float intensity = mix(0.05, 0.075, u_lightMode);
 
         color = mix(color, dotCol, softDot * pulse * intensity);
     }

@@ -104,7 +104,7 @@ export function App() {
         <div className="app-shell">
             <ShaderBackground theme={theme} />
 
-            {view === 'canvas' && <HolstCanvas />}
+            {view === 'canvas' && <HolstCanvas theme={theme} />}
 
             <header className="top-navbar">
                 <button
@@ -196,7 +196,7 @@ export function App() {
             {view !== 'canvas' && (
                 <main className="page-container">
                     {view === 'auth' || !session ? (
-                        <AuthPage initialMode={authMode} onSuccess={handleAuthSuccess} />
+                        <AuthPage key={authMode} initialMode={authMode} onSuccess={handleAuthSuccess} />
                     ) : view === 'admin' && session.user.role === 'Admin' ? (
                         <AdminPage />
                     ) : (
