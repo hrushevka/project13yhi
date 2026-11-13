@@ -1,37 +1,119 @@
-:root {
-  --color-light: #D9E7E8;
-  --color-teal: #528A9A;
-  --color-dark: #25252B;
+@font-face {
+  font-family: '129 Kosmos';
+  src: local('129 Kosmos'), local('129Kosmos'), local('Cosmos 129'), url('/fonts/129Kosmos.woff2') format('woff2'), url('/fonts/129Kosmos.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
-  --surface-glass: rgba(37, 37, 43, 0.72);
-  --surface-glass-strong: rgba(37, 37, 43, 0.88);
-  --surface-teal-soft: rgba(82, 138, 154, 0.18);
-  --surface-teal-medium: rgba(82, 138, 154, 0.32);
-  --surface-light-soft: rgba(217, 231, 232, 0.08);
-  --surface-light-medium: rgba(217, 231, 232, 0.16);
+@font-face {
+  font-family: 'KB Zero';
+  src: local('KB Zero'), local('KBZero'), url('/fonts/KBZero.woff2') format('woff2'), url('/fonts/KBZero.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
-  --border-subtle: rgba(217, 231, 232, 0.15);
-  --border-teal: rgba(82, 138, 154, 0.55);
-  --border-strong: rgba(217, 231, 232, 0.34);
+:root,
+[data-theme='dark'] {
+  --palette-navy: #2D4456;
+  --palette-sage: #74776C;
+  --palette-cream: #FDD7A6;
+  --palette-terra: #9E6752;
+  --palette-terra-alt: #9E6753;
+  --palette-plum: #554246;
 
-  --text-primary: #D9E7E8;
-  --text-secondary: rgba(217, 231, 232, 0.74);
-  --text-muted: rgba(217, 231, 232, 0.52);
+  --color-light: #FDD7A6;
+  --color-teal: #9E6752;
+  --color-dark: #15202B;
+
+  --bg-canvas: #15202B;
+  --bg-elevated: #2D4456;
+
+  --surface-glass: rgba(24, 37, 49, 0.80);
+  --surface-glass-strong: rgba(31, 48, 62, 0.92);
+  --surface-teal-soft: rgba(158, 103, 82, 0.18);
+  --surface-teal-medium: rgba(158, 103, 83, 0.32);
+  --surface-light-soft: rgba(253, 215, 166, 0.07);
+  --surface-light-medium: rgba(253, 215, 166, 0.14);
+
+  --cloud-center: rgba(25, 39, 52, 0.90);
+  --cloud-mid: rgba(45, 68, 86, 0.74);
+  --cloud-edge: rgba(158, 103, 82, 0.14);
+  --cloud-shadow: rgba(10, 16, 22, 0.72);
+  --cloud-glow: rgba(45, 68, 86, 0.42);
+
+  --border-subtle: rgba(253, 215, 166, 0.14);
+  --border-teal: rgba(158, 103, 82, 0.58);
+  --border-strong: rgba(253, 215, 166, 0.34);
+
+  --text-primary: #F7E4C8;
+  --text-secondary: rgba(247, 228, 200, 0.74);
+  --text-muted: #8E9287;
+  --btn-primary-text: #FFF8EE;
+
+  --holst-dot-color: rgba(253, 215, 166, 0.17);
+  --holst-cross-color: rgba(253, 215, 166, 0.22);
+
+  --font-main: 'Unbounded', 'Unbound', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-accent: '129 Kosmos', 'Unbounded', sans-serif;
+  --font-highlight: 'KB Zero', 'Unbounded', sans-serif;
 
   --radius-xl: 12px;
   --radius-lg: 12px;
-  --radius-md: 10px;
+  --radius-md: 12px;
   --radius-pill: 12px;
 
-  font-family: 'Unbounded', 'Unbound', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-main);
   line-height: 1.5;
   font-weight: 400;
-  color: var(--color-light);
-  background-color: var(--color-dark);
+  color: var(--text-primary);
+  background-color: var(--bg-canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme='light'] {
+  --palette-navy: #243746;
+  --palette-sage: #6E7568;
+  --palette-cream: #F6F1E7;
+  --palette-terra: #B56950;
+  --palette-terra-alt: #9E5740;
+  --palette-plum: #554246;
+
+  --color-light: #243746;
+  --color-teal: #B56950;
+  --color-dark: #F6F1E7;
+
+  --bg-canvas: #F6F1E7;
+  --bg-elevated: #EAE1D0;
+
+  --surface-glass: rgba(255, 251, 244, 0.82);
+  --surface-glass-strong: rgba(249, 243, 232, 0.94);
+  --surface-teal-soft: rgba(181, 105, 80, 0.14);
+  --surface-teal-medium: rgba(181, 105, 80, 0.24);
+  --surface-light-soft: rgba(45, 68, 86, 0.06);
+  --surface-light-medium: rgba(45, 68, 86, 0.12);
+
+  --cloud-center: rgba(255, 252, 246, 0.92);
+  --cloud-mid: rgba(242, 232, 214, 0.78);
+  --cloud-edge: rgba(253, 215, 166, 0.28);
+  --cloud-shadow: rgba(45, 68, 86, 0.10);
+  --cloud-glow: rgba(181, 105, 80, 0.12);
+
+  --border-subtle: rgba(45, 68, 86, 0.13);
+  --border-teal: rgba(181, 105, 80, 0.45);
+  --border-strong: rgba(85, 66, 70, 0.28);
+
+  --text-primary: #243746;
+  --text-secondary: #554246;
+  --text-muted: #74776C;
+  --btn-primary-text: #FFFDF9;
+
+  --holst-dot-color: rgba(45, 68, 86, 0.18);
+  --holst-cross-color: rgba(45, 68, 86, 0.22);
 }
 
 *,
@@ -45,9 +127,10 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background-color: var(--color-dark);
-  color: var(--color-light);
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
   overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 #root {
@@ -87,14 +170,14 @@ input::-webkit-contacts-auto-fill-button {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-dark);
+  background: var(--bg-canvas);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(82, 138, 154, 0.45);
+  background: rgba(158, 103, 82, 0.48);
   border-radius: 12px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-teal);
+  background: var(--palette-terra);
 }

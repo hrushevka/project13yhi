@@ -5,6 +5,7 @@ import type { AuthSession } from '../types';
 import { translateErrorMessage, validators } from '../utils/validation';
 
 interface AuthPageProps {
+    initialMode?: 'login' | 'register';
     onSuccess: (session: AuthSession) => void;
 }
 
@@ -38,8 +39,8 @@ function pickRandomPhrase(list: string[], exclude?: string): string {
     return source[Math.floor(Math.random() * source.length)];
 }
 
-export function AuthPage({ onSuccess }: AuthPageProps) {
-    const [mode, setMode] = useState<'login' | 'register'>('login');
+export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
+    const [mode, setMode] = useState<'login' | 'register'>(initialMode);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -51,6 +52,10 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
     const [registerGreeting, setRegisterGreeting] = useState(() => pickRandomPhrase(REGISTER_GREETINGS));
     const [isDemoUserAvailable, setIsDemoUserAvailable] = useState<boolean>(false);
     const [isDemoAdminAvailable, setIsDemoAdminAvailable] = useState<boolean>(false);
+
+    useEffect(() => {
+        setMode(initialMode);
+    }, [initialMode]);
 
     useEffect(() => {
         let cancelled = false;
@@ -226,7 +231,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                                 }}
                                 style={
                                     invalidField === 'name'
-                                        ? { borderColor: 'var(--color-light)', boxShadow: '0 0 0 3px rgba(82, 138, 154, 0.35)' }
+                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
                                         : undefined
                                 }
                             />
@@ -249,7 +254,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                             }}
                             style={
                                 invalidField === 'email'
-                                    ? { borderColor: 'var(--color-light)', boxShadow: '0 0 0 3px rgba(82, 138, 154, 0.35)' }
+                                    ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
                                     : undefined
                             }
                         />
@@ -272,7 +277,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                                 }}
                                 style={
                                     invalidField === 'password'
-                                        ? { borderColor: 'var(--color-light)', boxShadow: '0 0 0 3px rgba(82, 138, 154, 0.35)' }
+                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
                                         : undefined
                                 }
                             />

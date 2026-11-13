@@ -9,9 +9,10 @@ interface CabinetPageProps {
     session: AuthSession;
     onSessionUpdate: (session: AuthSession | null) => void;
     onOpenAdmin?: () => void;
+    onLogout?: () => void;
 }
 
-export function CabinetPage({ session, onSessionUpdate, onOpenAdmin }: CabinetPageProps) {
+export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }: CabinetPageProps) {
     const [requests, setRequests] = useState<AdminRequestModel[]>([]);
     const [description, setDescription] = useState('');
     const [creating, setCreating] = useState(false);
@@ -164,12 +165,14 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin }: CabinetPa
                 </div>
 
                 <div className="action-row">
-                    <span className="role-badge">
-                        {session.user.role === 'Admin' ? 'Администратор' : 'Пользователь'}
-                    </span>
                     {session.user.role === 'Admin' && onOpenAdmin && (
                         <button type="button" className="btn btn-primary btn-sm" onClick={onOpenAdmin}>
                             Перейти в Админ-панель
+                        </button>
+                    )}
+                    {onLogout && (
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={onLogout}>
+                            Выйти
                         </button>
                     )}
                 </div>
@@ -226,7 +229,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin }: CabinetPa
                                 }}
                                 style={
                                     invalidField === 'description'
-                                        ? { borderColor: 'var(--color-light)', boxShadow: '0 0 0 3px rgba(82, 138, 154, 0.35)' }
+                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
                                         : undefined
                                 }
                             />
@@ -290,7 +293,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin }: CabinetPa
                                 }}
                                 style={
                                     invalidField === 'name'
-                                        ? { borderColor: 'var(--color-light)', boxShadow: '0 0 0 3px rgba(82, 138, 154, 0.35)' }
+                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
                                         : undefined
                                 }
                             />
@@ -311,7 +314,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin }: CabinetPa
                                 }}
                                 style={
                                     invalidField === 'email'
-                                        ? { borderColor: 'var(--color-light)', boxShadow: '0 0 0 3px rgba(82, 138, 154, 0.35)' }
+                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
                                         : undefined
                                 }
                             />
@@ -333,7 +336,7 @@ export function CabinetPage({ session, onSessionUpdate, onOpenAdmin }: CabinetPa
                                 }}
                                 style={
                                     invalidField === 'password'
-                                        ? { borderColor: 'var(--color-light)', boxShadow: '0 0 0 3px rgba(82, 138, 154, 0.35)' }
+                                        ? { borderColor: 'var(--text-primary)', boxShadow: '0 0 0 3px rgba(158, 103, 82, 0.35)' }
                                         : undefined
                                 }
                             />

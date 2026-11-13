@@ -38,6 +38,7 @@ const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_H
     env.ASPNETCORE_URLS ? env.ASPNETCORE_URLS.split(';')[0] : 'https://localhost:7219';
 
 export default defineConfig({
+    root: fileURLToPath(new URL('.', import.meta.url)),
     plugins: [plugin()],
     resolve: {
         alias: {

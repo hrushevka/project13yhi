@@ -12,73 +12,86 @@ precision highp float;
 
 uniform vec2 u_resolution;
 uniform float u_time;
+uniform float u_lightMode;
 
-float hash(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
+float hash1(float n) {
+    return fract(sin(n) * 43758.5453123);
 }
 
-float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = hash(i);
-    float b = hash(i + vec2(1.0, 0.0));
-    float c = hash(i + vec2(0.0, 1.0));
-    float d = hash(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
-float fbm(vec2 p) {
-    float value = 0.0;
-    float amp = 0.5;
-    for (int i = 0; i < 5; i++) {
-        value += amp * noise(p);
-        p *= 2.02;
-        amp *= 0.5;
-    }
-    return value;
+vec2 hash2(float n) {
+    return fract(sin(vec2(n, n + 1.0)) * vec2(43758.5453123, 22578.1459123));
 }
 
 void main() {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-    vec2 p = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+    float aspect = u_resolution.x / max(u_resolution.y, 1.0);
+    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
 
-    float t = u_time * 0.14;
+    vec3 darkCosmos = vec3(0.082, 0.125, 0.169);
+    vec3 darkNavy = vec3(0.176, 0.267, 0.337);
+    vec3 darkSage = vec3(0.455, 0.467, 0.424);
+    vec3 darkCream = vec3(0.992, 0.843, 0.651);
+    vec3 darkTerra = vec3(0.620, 0.404, 0.322);
 
-    vec2 q = vec2(
-        fbm(p * 1.6 + vec2(0.0, t)),
-        fbm(p * 1.6 + vec2(5.2, -t * 0.8))
-    );
+    vec3 lightAlabaster = vec3(0.965, 0.945, 0.906);
+    vec3 lightLinen = vec3(0.925, 0.890, 0.824);
+    vec3 lightPeach = vec3(0.957, 0.796, 0.620);
+    vec3 lightSienna = vec3(0.765, 0.486, 0.388);
+    vec3 lightSage = vec3(0.545, 0.588, 0.525);
+    vec3 lightSlate = vec3(0.345, 0.463, 0.549);
 
-    vec2 r = vec2(
-        fbm(p * 2.1 + 2.8 * q + vec2(1.7, 9.2) + 0.15 * t),
-        fbm(p * 2.1 + 2.8 * q + vec2(8.3, 2.8) - 0.12 * t)
-    );
+    vec3 baseDark = mix(darkCosmos, darkNavy, 0.42 * uv.y + 0.15 * (1.0 - uv.x));
+    vec3 baseLight = mix(lightAlabaster, lightLinen, 0.35 * (1.0 - uv.y) + 0.15 * uv.x);
+    vec3 color = mix(baseDark, baseLight, u_lightMode);
 
-    float f = fbm(p * 1.8 + 2.2 * r);
+    for (int i = 0; i < 14; i++) {
+        float fi = float(i) + 1.0;
+        vec2 seed = hash2(fi * 19.37);
+        vec2 center = (seed - 0.5) * vec2(aspect * 1.15, 1.05);
 
-    vec3 colDark = vec3(0.145, 0.145, 0.169);
-    vec3 colTeal = vec3(0.322, 0.541, 0.604);
-    vec3 colLight = vec3(0.851, 0.906, 0.910);
+        center += 0.06 * vec2(
+            sin(u_time * 0.11 + fi * 1.7),
+            cos(u_time * 0.09 + fi * 2.3)
+        );
 
-    float waveRibbon = smoothstep(0.32, 0.78, f);
-    float highlight = smoothstep(0.66, 0.95, f * length(q));
+        float speed = 0.26 + 0.22 * hash1(fi * 7.13);
+        float phase = fi * 2.41 + hash1(fi * 3.91) * 6.2831;
+        float pulse = 0.5 + 0.5 * sin(u_time * speed + phase);
+        pulse = smoothstep(0.28, 0.96, pulse);
 
-    vec3 color = mix(colDark, colTeal * 0.58 + colDark * 0.42, waveRibbon);
-    color = mix(color, colTeal, smoothstep(0.45, 0.85, r.x * f));
-    color = mix(color, colLight * 0.78 + colTeal * 0.22, highlight * 0.45);
+        float radius = 0.18 + 0.16 * hash1(fi * 11.7);
+        float d = length(p - center);
+        float softDot = exp(-(d * d) / (radius * radius));
 
-    float vignette = smoothstep(1.35, 0.25, length(p));
-    color = mix(colDark * 0.92, color, vignette);
+        float selector = hash1(fi * 5.3);
+
+        vec3 dotColorDark = mix(darkNavy, darkTerra, selector * 0.65);
+        dotColorDark = mix(dotColorDark, mix(darkCream, darkSage, hash1(fi * 2.9)), 0.35);
+
+        vec3 dotColorLight = mix(lightPeach, lightSienna, selector);
+        dotColorLight = mix(dotColorLight, mix(lightSage, lightSlate, hash1(fi * 2.9)), 0.42);
+
+        vec3 dotCol = mix(dotColorDark, dotColorLight, u_lightMode);
+        float intensity = mix(0.075, 0.075, u_lightMode);
+
+        color = mix(color, dotCol, softDot * pulse * intensity);
+    }
 
     gl_FragColor = vec4(color, 1.0);
 }
 `;
 
-export function ShaderBackground() {
+interface ShaderBackgroundProps {
+    theme?: 'dark' | 'light';
+}
+
+export function ShaderBackground({ theme = 'dark' }: ShaderBackgroundProps) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const themeRef = useRef<'dark' | 'light'>(theme);
+
+    useEffect(() => {
+        themeRef.current = theme;
+    }, [theme]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -122,6 +135,7 @@ export function ShaderBackground() {
         const posLoc = gl.getAttribLocation(program, 'a_position');
         const resLoc = gl.getUniformLocation(program, 'u_resolution');
         const timeLoc = gl.getUniformLocation(program, 'u_time');
+        const lightModeLoc = gl.getUniformLocation(program, 'u_lightMode');
 
         let animationFrameId = 0;
         const startTime = performance.now();
@@ -149,6 +163,7 @@ export function ShaderBackground() {
 
             gl.uniform2f(resLoc, canvas.width, canvas.height);
             gl.uniform1f(timeLoc, elapsed);
+            gl.uniform1f(lightModeLoc, themeRef.current === 'light' ? 1.0 : 0.0);
 
             gl.drawArrays(gl.TRIANGLES, 0, 6);
             animationFrameId = requestAnimationFrame(render);

@@ -64,9 +64,9 @@ void main() {
         t += d * 0.85;
     }
 
-    vec3 colDark = vec3(0.145, 0.145, 0.169);
-    vec3 colTeal = vec3(0.322, 0.541, 0.604);
-    vec3 colLight = vec3(0.851, 0.906, 0.910);
+    vec3 colDark = vec3(0.176, 0.267, 0.337);
+    vec3 colTerra = vec3(0.620, 0.404, 0.322);
+    vec3 colCream = vec3(0.992, 0.843, 0.651);
 
     if (!hit) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
@@ -82,8 +82,8 @@ void main() {
     float fresnel = pow(1.0 - max(dot(n, -rd), 0.0), 2.6);
     float spec = pow(max(dot(reflect(-lightDir1, n), -rd), 0.0), 24.0);
 
-    vec3 base = mix(colDark, colTeal, diff1 * 0.85 + diff2 * 0.35);
-    vec3 finalColor = mix(base, colLight, fresnel * 0.72 + spec * 0.68);
+    vec3 base = mix(colDark, colTerra, diff1 * 0.85 + diff2 * 0.35);
+    vec3 finalColor = mix(base, colCream, fresnel * 0.72 + spec * 0.68);
 
     gl_FragColor = vec4(finalColor, 1.0);
 }
