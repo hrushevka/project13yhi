@@ -22,7 +22,6 @@ namespace lazy_pj.Server.Services
             _env = env;
             _log = log;
         }
-
         public async Task<IReadOnlyList<PresetListItemDto>> GetPublicAsync(
             string? search, string? outcome, int page, int pageSize,
             CancellationToken ct = default)
@@ -30,9 +29,7 @@ namespace lazy_pj.Server.Services
             if (page < 1) page = 1;
             if (pageSize is < 1 or > 100) pageSize = 20;
 
-            var q = _db.Presets
-                .Where(p => p.IsPublic)
-                .AsNoTracking();
+            var q = _db.Presets.Where(p => p.IsPublic).AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(search))
                 q = q.Where(p => p.Title.Contains(search));
@@ -51,7 +48,29 @@ namespace lazy_pj.Server.Services
                           p.Id, p.Title, p.Description, p.Outcome,
                           p.ImagePath == null ? null : $"/api/presets/{p.Id}/preview",
                           u.Name ?? "unknown",
-                          p.CreatedAt))
+                          p.CreatedAt,
+                          false))
+                .ToListAsync(ct);
+        }
+
+        public async Task<IReadOnlyList<PresetListItemDto>> GetMineAsync(
+            int userId, int page, int pageSize, CancellationToken ct = default)
+        {
+            if (page < 1) page = 1;
+            if (pageSize is < 1 or > 100) pageSize = 20;
+
+            return await _db.Presets
+                .Where(p => p.UserId == userId)
+                .OrderByDescending(p => p.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .AsNoTracking()
+                .Select(p => new PresetListItemDto(
+                    p.Id, p.Title, p.Description, p.Outcome,
+                    p.ImagePath == null ? null : $"/api/presets/{p.Id}/preview",
+                    "me",
+                    p.CreatedAt,
+                    true))
                 .ToListAsync(ct);
         }
 
@@ -59,11 +78,11 @@ namespace lazy_pj.Server.Services
         {
             var p = await _db.Presets
                 .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == id && x.IsPublic, ct);
+                .FirstOrDefaultAsync(x => x.Id == id, ct);
 
             if (p is null) return null;
 
-            var authorName = await _db.Users
+            var author = await _db.Users
                 .Where(u => u.Id == p.UserId)
                 .Select(u => u.Name)
                 .FirstOrDefaultAsync(ct) ?? "unknown";
@@ -74,31 +93,22 @@ namespace lazy_pj.Server.Services
                     b.Mass, b.PositionX, b.PositionY,
                     b.VelocityX, b.VelocityY)).ToList(),
                 p.G, p.Softening, p.Dt, p.Outcome,
-                authorName);
+                author, p.UserId, false);
         }
-
         public async Task<PresetDetailDto> CreateAsync(
             CreatePresetDto dto, int userId, CancellationToken ct = default)
         {
-            Validate(dto);
+            ValidateCreate(dto);
 
             var preset = new PresetModel
             {
                 Title = dto.Title.Trim(),
-                Description = string.IsNullOrWhiteSpace(dto.Description)
-                    ? null
-                    : dto.Description.Trim(),
-                Bodies = dto.Bodies.Select(b => new BodyModel
-                {
-                    Mass = b.Mass,
-                    PositionX = b.PositionX,
-                    PositionY = b.PositionY,
-                    VelocityX = b.VelocityX,
-                    VelocityY = b.VelocityY
-                }).ToList(),
+                Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
+                Bodies = dto.Bodies.Select(MapBody).ToList(),
                 G = dto.G,
                 Softening = dto.Softening,
                 Dt = dto.Dt,
+                Outcome = AllowedOutcomes.Contains(dto.Outcome ?? "") ? dto.Outcome : null,
                 UserId = userId,
                 IsPublic = true,
                 CreatedAt = DateTime.UtcNow
@@ -112,35 +122,81 @@ namespace lazy_pj.Server.Services
 
             _log.LogInformation("Preset {Id} created by user {UserId}", preset.Id, userId);
 
-            var author = await _db.Users
-                .Where(u => u.Id == userId)
-                .Select(u => u.Name)
-                .FirstOrDefaultAsync(ct) ?? "unknown";
-
-            return new PresetDetailDto(
-                preset.Id, preset.Title, preset.Description,
-                preset.Bodies.Select(b => new BodyDto(
-                    b.Mass, b.PositionX, b.PositionY,
-                    b.VelocityX, b.VelocityY)).ToList(),
-                preset.G, preset.Softening, preset.Dt, preset.Outcome,
-                author);
+            return await BuildDetail(preset.Id, userId, isAdmin: false, ct)
+                   ?? throw new InvalidOperationException("Created preset not found");
         }
 
-        public async Task<bool> DeleteAsync(int id, int userId, CancellationToken ct = default)
+        public async Task<PresetDetailDto?> UpdateAsync(
+            int id, UpdatePresetDto dto, int userId, bool isAdmin,
+            CancellationToken ct = default)
         {
-            var p = await _db.Presets
-                .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct);
+            var p = await _db.Presets.FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (p is null) return null;
 
+            if (!isAdmin && p.UserId != userId)
+                throw new UnauthorizedAccessException("You can only edit your own presets");
+
+            if (!string.IsNullOrWhiteSpace(dto.Title))
+                p.Title = dto.Title.Trim();
+
+            if (dto.Description is not null)
+                p.Description = string.IsNullOrWhiteSpace(dto.Description)
+                    ? null : dto.Description.Trim();
+
+            if (dto.Bodies is not null)
+            {
+                if (dto.Bodies.Count != 3)
+                    throw new ArgumentException("Exactly 3 bodies are required");
+                if (dto.Bodies.Any(b => b.Mass <= 0))
+                    throw new ArgumentException("Mass must be positive");
+                p.Bodies = dto.Bodies.Select(MapBody).ToList();
+            }
+
+            if (dto.G.HasValue) p.G = dto.G.Value;
+            if (dto.Softening.HasValue) p.Softening = dto.Softening.Value;
+            if (dto.Dt.HasValue)
+            {
+                if (dto.Dt.Value <= 0) throw new ArgumentException("Dt must be positive");
+                p.Dt = dto.Dt.Value;
+            }
+
+            if (dto.Outcome is not null)
+                p.Outcome = AllowedOutcomes.Contains(dto.Outcome) ? dto.Outcome : null;
+
+            if (!string.IsNullOrWhiteSpace(dto.PreviewImageBase64))
+            {
+                if (!string.IsNullOrWhiteSpace(p.ImagePath))
+                {
+                    var old = Path.Combine(GetUploadsRoot(), p.ImagePath);
+                    if (File.Exists(old)) File.Delete(old);
+                }
+                p.ImagePath = await SaveImageAsync(dto.PreviewImageBase64, ct);
+            }
+
+            await _db.SaveChangesAsync(ct);
+
+            return await BuildDetail(p.Id, userId, isAdmin, ct);
+        }
+
+        public async Task<bool> DeleteAsync(
+            int id, int userId, bool isAdmin, CancellationToken ct = default)
+        {
+            var p = await _db.Presets.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (p is null) return false;
+
+            if (!isAdmin && p.UserId != userId)
+                throw new UnauthorizedAccessException("You can only delete your own presets");
 
             if (!string.IsNullOrWhiteSpace(p.ImagePath))
             {
-                var path = Path.Combine(_env.WebRootPath, p.ImagePath);
+                var path = Path.Combine(GetUploadsRoot(), p.ImagePath);
                 if (File.Exists(path)) File.Delete(path);
             }
 
             _db.Presets.Remove(p);
             await _db.SaveChangesAsync(ct);
+            _log.LogInformation("Preset {Id} deleted by user {UserId} (admin: {IsAdmin})",
+                id, userId, isAdmin);
             return true;
         }
 
@@ -153,11 +209,41 @@ namespace lazy_pj.Server.Services
 
             if (imagePath is null) return null;
 
-            var full = Path.Combine(_env.WebRootPath, imagePath);
+            var full = Path.Combine(GetUploadsRoot(), imagePath);
             return File.Exists(full) ? full : null;
         }
 
-        private static void Validate(CreatePresetDto dto)
+        private async Task<PresetDetailDto?> BuildDetail(
+            int id, int viewerId, bool isAdmin, CancellationToken ct)
+        {
+            var p = await _db.Presets.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (p is null) return null;
+
+            var author = await _db.Users
+                .Where(u => u.Id == p.UserId)
+                .Select(u => u.Name)
+                .FirstOrDefaultAsync(ct) ?? "unknown";
+
+            return new PresetDetailDto(
+                p.Id, p.Title, p.Description,
+                p.Bodies.Select(b => new BodyDto(
+                    b.Mass, b.PositionX, b.PositionY,
+                    b.VelocityX, b.VelocityY)).ToList(),
+                p.G, p.Softening, p.Dt, p.Outcome,
+                author, p.UserId,
+                isAdmin || p.UserId == viewerId);
+        }
+
+        private static BodyModel MapBody(BodyDto b) => new()
+        {
+            Mass = b.Mass,
+            PositionX = b.PositionX,
+            PositionY = b.PositionY,
+            VelocityX = b.VelocityX,
+            VelocityY = b.VelocityY
+        };
+
+        private static void ValidateCreate(CreatePresetDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Title))
                 throw new ArgumentException("Title is required");
@@ -173,6 +259,14 @@ namespace lazy_pj.Server.Services
                 throw new ArgumentException("Softening cannot be negative");
         }
 
+        private string GetUploadsRoot()
+        {
+            var root = _env.WebRootPath;
+            if (string.IsNullOrEmpty(root))
+                root = Path.Combine(_env.ContentRootPath, "wwwroot");
+            return root;
+        }
+
         private async Task<string> SaveImageAsync(string base64, CancellationToken ct)
         {
             var raw = base64.Contains(',') ? base64.Split(',')[^1] : base64;
@@ -184,7 +278,7 @@ namespace lazy_pj.Server.Services
             if (bytes.Length > MaxImageBytes)
                 throw new ArgumentException("Image is too large (max 500 KB)");
 
-            var dir = Path.Combine(_env.WebRootPath, "uploads", "previews");
+            var dir = Path.Combine(GetUploadsRoot(), "uploads", "previews");
             Directory.CreateDirectory(dir);
 
             var fileName = $"{Guid.NewGuid():N}.png";

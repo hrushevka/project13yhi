@@ -1,4 +1,6 @@
-﻿namespace lazy_pj.Server.DTOs
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace lazy_pj.Server.DTOs
 {
     public record BodyDto(
         double Mass, double PositionX, double PositionY,
@@ -7,17 +9,30 @@
     public record PresetListItemDto(
         int Id, string Title, string? Description,
         string? Outcome, string? PreviewUrl,
-        string AuthorName, DateTime CreatedAt);
+        string AuthorName, DateTime CreatedAt,
+        bool CanEdit);
 
     public record PresetDetailDto(
         int Id, string Title, string? Description,
         List<BodyDto> Bodies,
         double G, double Softening, double Dt,
-        string? Outcome, string AuthorName);
+        string? Outcome, string AuthorName,
+        int AuthorId, bool CanEdit);
 
     public record CreatePresetDto(
         string Title, string? Description,
         List<BodyDto> Bodies,
         double G, double Softening, double Dt,
-        string? PreviewImageBase64);
+        string? PreviewImageBase64,
+        string? Outcome);
+
+    public record UpdatePresetDto(
+        string? Title,
+        string? Description,
+        List<BodyDto>? Bodies,
+        double? G,
+        double? Softening,
+        double? Dt,
+        string? PreviewImageBase64,
+        string? Outcome);
 }

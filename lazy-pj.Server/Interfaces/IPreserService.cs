@@ -13,8 +13,18 @@ namespace lazy_pj.Server.Interfaces
         Task<PresetDetailDto> CreateAsync(
             CreatePresetDto dto, int userId, CancellationToken ct = default);
 
-        Task<bool> DeleteAsync(int id, int userId, CancellationToken ct = default);
+        Task<PresetDetailDto?> UpdateAsync(
+            int id, UpdatePresetDto dto, int userId, bool isAdmin,
+            CancellationToken ct = default);
+
+        Task<bool> DeleteAsync(
+            int id, int userId, bool isAdmin,
+            CancellationToken ct = default);
 
         Task<string?> GetPreviewImagePathAsync(int id, CancellationToken ct = default);
+
+        Task<IReadOnlyList<PresetListItemDto>> GetMineAsync(
+            int userId, int page, int pageSize,
+            CancellationToken ct = default);
     }
 }
