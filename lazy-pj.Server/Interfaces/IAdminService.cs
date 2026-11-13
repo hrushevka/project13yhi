@@ -11,6 +11,5 @@ namespace lazy_pj.Server.Interfaces
         Task<bool> RemoveUserAdminAsync(int id);
         Task<string> GetUserRoleAsync(int id);
         Task<bool> DeleteUserAsync(int id);
-        Task<List<AdminRequestModel>> GetAllRequestsAsync();
     }
 }

@@ -67,10 +67,5 @@ namespace lazy_pj.Server.Services
             await _context.SaveChangesAsync();
             return true;
         }
-        public Task<List<AdminRequestModel>> GetAllRequestsAsync() =>
-            _context.Requests.AsNoTracking()
-                .OrderByDescending(r => r.CreationTime)
-                .ToListAsync();
-        
     }
 }

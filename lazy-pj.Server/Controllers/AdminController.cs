@@ -74,11 +74,5 @@ namespace lazy_pj.Server.Controllers
             }
             catch (InvalidOperationException ex) { return NotFound(new { message = ex.Message }); }
         }
-        [HttpGet("requests")]
-        public async Task<IActionResult> GetAllRequests()
-        {
-            var requests = await _adminService.GetAllRequestsAsync();
-            return Ok(requests);
-        }
     }
 }
