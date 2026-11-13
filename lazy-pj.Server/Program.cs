@@ -22,7 +22,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<IAuth, AuthService>();
-builder.Services.AddScoped<IRequest, RequestService>();
+builder.Services.AddScoped<IPreserService, PresetService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -64,6 +64,8 @@ builder.Services.AddSwaggerGen(options =>
         [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
     });
 });
+
+builder.WebHost.UseWebRoot("wwwroot");
 
 var app = builder.Build();
 

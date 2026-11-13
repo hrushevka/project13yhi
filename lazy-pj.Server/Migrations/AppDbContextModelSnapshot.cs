@@ -22,7 +22,7 @@ namespace lazy_pj.Server.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("lazy_pj.Server.Models.AdminRequestModel", b =>
+            modelBuilder.Entity("lazy_pj.Server.Models.PresetModel", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -30,17 +30,31 @@ namespace lazy_pj.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("Approved")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreationTime")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("UserEmail")
+                    b.Property<double>("Dt")
+                        .HasColumnType("float");
+
+                    b.Property<double>("G")
+                        .HasColumnType("float");
+
+                    b.Property<string>("ImagePath")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Outcome")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double>("Softening")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -49,7 +63,7 @@ namespace lazy_pj.Server.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Requests");
+                    b.ToTable("Presets");
                 });
 
             modelBuilder.Entity("lazy_pj.Server.Models.UserModel", b =>
@@ -81,6 +95,40 @@ namespace lazy_pj.Server.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("lazy_pj.Server.Models.PresetModel", b =>
+                {
+                    b.OwnsMany("lazy_pj.Server.Models.BodyModel", "Bodies", b1 =>
+                        {
+                            b1.Property<int>("PresetModelId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<double>("Mass");
+
+                            b1.Property<double>("PositionX");
+
+                            b1.Property<double>("PositionY");
+
+                            b1.Property<double>("VelocityX");
+
+                            b1.Property<double>("VelocityY");
+
+                            b1.HasKey("PresetModelId", "__synthesizedOrdinal");
+
+                            b1.ToTable("Presets");
+
+                            b1
+                                .ToJson("Bodies")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PresetModelId");
+                        });
+
+                    b.Navigation("Bodies");
                 });
 #pragma warning restore 612, 618
         }
