@@ -1,45 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api';
-import type { PresetDetail } from '../types';
 import { FALLBACK_PRESET, isStateFinite, minPairTimescale, stepBodiesInPlace, toSimBodies } from '../utils/physics';
-import type { SimBody } from '../utils/physics';
-
-interface HolstCanvasProps {
-    theme: 'dark' | 'light';
-}
-
-interface SimConfig {
-    title: string;
-    g: number;
-    softening: number;
-    dt: number;
-    source: 'loading' | 'server' | 'demo';
-}
-
-interface ThemeColors {
-    bodies: string[];
-    grid: string;
-    origin: string;
-    vector: string;
-    ring: string;
-    trailAlpha: number;
-}
-
-type DragMode =
-    | { kind: 'none' }
-    | { kind: 'pan'; startX: number; startY: number; ox: number; oy: number }
-    | { kind: 'move'; index: number; dx: number; dy: number }
-    | { kind: 'velocity'; index: number };
-
-interface MenuState {
-    index: number;
-    openId: number;
-    x: number;
-    y: number;
-    color: string;
-    body: SimBody;
-}
 
 const MIN_SPEED = 0.1;
 const MAX_SPEED = 5;
@@ -54,9 +15,9 @@ const HANDLE_RADIUS = 6;
 const MENU_WIDTH = 248;
 const MENU_HEIGHT = 300;
 
-function readThemeColors(): ThemeColors {
+function readThemeColors() {
     const styles = getComputedStyle(document.documentElement);
-    const pick = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
+    const pick = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
     return {
         bodies: [
             pick('--body-color-1', '#E39A7B'),
@@ -71,39 +32,30 @@ function readThemeColors(): ThemeColors {
     };
 }
 
-function bodyRadius(mass: number): number {
+function bodyRadius(mass) {
     return Math.max(6, Math.min(22, 5 + 4 * Math.cbrt(Math.max(mass, 0.0001))));
 }
 
-function cloneBodies(bodies: SimBody[]): SimBody[] {
+function cloneBodies(bodies) {
     return bodies.map((b) => ({ ...b }));
 }
 
-function computeUnitPx(bodies: SimBody[]): number {
+function computeUnitPx(bodies) {
     const extent = bodies.reduce((max, b) => Math.max(max, Math.abs(b.x), Math.abs(b.y)), 0);
     const safeExtent = extent > 0 ? extent : 1;
     return (Math.min(window.innerWidth, window.innerHeight) * 0.28) / safeExtent;
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value) {
     if (!Number.isFinite(value)) return '0';
     return String(Number(value.toFixed(4)));
 }
 
-function formatSimTime(seconds: number): string {
+function formatSimTime(seconds) {
     return `${seconds.toFixed(2)} с`;
 }
 
-interface BodyMenuProps {
-    menu: MenuState;
-    onApply: (index: number, patch: Partial<SimBody>) => void;
-    onDelete: (index: number) => void;
-    onClose: () => void;
-}
-
-type MenuField = 'm' | 'x' | 'y' | 'vx' | 'vy';
-
-const MENU_FIELDS: { key: MenuField; label: string; full?: boolean }[] = [
+const MENU_FIELDS = [
     { key: 'm', label: 'Масса', full: true },
     { key: 'x', label: 'Позиция X' },
     { key: 'y', label: 'Позиция Y' },
@@ -111,8 +63,8 @@ const MENU_FIELDS: { key: MenuField; label: string; full?: boolean }[] = [
     { key: 'vy', label: 'Скорость Y' },
 ];
 
-function BodyMenu({ menu, onApply, onDelete, onClose }: BodyMenuProps) {
-    const [drafts, setDrafts] = useState<Record<MenuField, string>>(() => ({
+function BodyMenu({ menu, onApply, onDelete, onClose }) {
+    const [drafts, setDrafts] = useState(() => ({
         m: formatNumber(menu.body.m),
         x: formatNumber(menu.body.x),
         y: formatNumber(menu.body.y),
@@ -120,14 +72,14 @@ function BodyMenu({ menu, onApply, onDelete, onClose }: BodyMenuProps) {
         vy: formatNumber(menu.body.vy),
     }));
 
-    const isValid = (key: MenuField, raw: string) => {
+    const isValid = (key, raw) => {
         const value = Number(raw.replace(',', '.'));
         if (raw.trim() === '' || !Number.isFinite(value)) return false;
         if (key === 'm' && value <= 0) return false;
         return true;
     };
 
-    const handleChange = (key: MenuField, raw: string) => {
+    const handleChange = (key, raw) => {
         setDrafts((prev) => ({ ...prev, [key]: raw }));
         if (isValid(key, raw)) {
             onApply(menu.index, { [key]: Number(raw.replace(',', '.')) });
@@ -182,15 +134,15 @@ function BodyMenu({ menu, onApply, onDelete, onClose }: BodyMenuProps) {
     );
 }
 
-export function HolstCanvas({ theme }: HolstCanvasProps) {
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+export function HolstCanvas({ theme }) {
+    const containerRef = useRef(null);
+    const canvasRef = useRef(null);
 
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [scale, setScale] = useState(1);
     const [running, setRunning] = useState(false);
     const [speed, setSpeed] = useState(1);
-    const [config, setConfig] = useState<SimConfig>({
+    const [config, setConfig] = useState({
         title: FALLBACK_PRESET.title,
         g: FALLBACK_PRESET.g,
         softening: FALLBACK_PRESET.softening,
@@ -198,26 +150,25 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         source: 'loading',
     });
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
-    const [menu, setMenu] = useState<MenuState | null>(null);
-    const [cursorMode, setCursorMode] = useState<'pan' | 'place' | 'grab'>('pan');
+    const [menu, setMenu] = useState(null);
+    const [cursorMode, setCursorMode] = useState('pan');
 
-    const timeTextRef = useRef<HTMLSpanElement | null>(null);
-
+    const timeTextRef = useRef(null);
     const offsetRef = useRef(offset);
     const scaleRef = useRef(scale);
     const runningRef = useRef(running);
     const speedRef = useRef(speed);
     const configRef = useRef(config);
-    const stateRef = useRef<SimBody[]>(toSimBodies(FALLBACK_PRESET.bodies));
-    const setupRef = useRef<SimBody[]>(toSimBodies(FALLBACK_PRESET.bodies));
-    const presetRef = useRef<PresetDetail>(FALLBACK_PRESET);
-    const trailsRef = useRef<{ x: number; y: number }[][]>([[], [], []]);
+    const stateRef = useRef(toSimBodies(FALLBACK_PRESET.bodies));
+    const setupRef = useRef(toSimBodies(FALLBACK_PRESET.bodies));
+    const presetRef = useRef(FALLBACK_PRESET);
+    const trailsRef = useRef([[], [], []]);
     const simTimeRef = useRef(0);
     const trailClockRef = useRef(0);
     const unitPxRef = useRef(180);
-    const colorsRef = useRef<ThemeColors | null>(null);
-    const dragRef = useRef<DragMode>({ kind: 'none' });
-    const selectedRef = useRef<number | null>(null);
+    const colorsRef = useRef(null);
+    const dragRef = useRef({ kind: 'none' });
+    const selectedRef = useRef(null);
     const menuCounterRef = useRef(0);
 
     useEffect(() => {
@@ -268,7 +219,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
     }, [syncTimeText]);
 
     const loadBodies = useCallback(
-        (bodies: SimBody[]) => {
+        (bodies) => {
             stateRef.current = cloneBodies(bodies);
             setupRef.current = cloneBodies(bodies);
             trailsRef.current = bodies.map(() => []);
@@ -284,7 +235,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
     );
 
     const applyPreset = useCallback(
-        (preset: PresetDetail, source: 'server' | 'demo') => {
+        (preset, source) => {
             presetRef.current = preset;
             loadBodies(toSimBodies(preset.bodies));
             setConfig({
@@ -327,7 +278,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         let lastTime = performance.now();
         let cachedGridScale = -1;
         let cachedGridColor = '';
-        let gridPattern: CanvasPattern | null = null;
+        let gridPattern = null;
         const tileSize = 64;
         const tileCanvas = document.createElement('canvas');
         tileCanvas.width = tileSize;
@@ -344,7 +295,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         resize();
         window.addEventListener('resize', resize);
 
-        const step = (realDt: number) => {
+        const step = (realDt) => {
             const cfg = configRef.current;
             const state = stateRef.current;
             if (!runningRef.current || state.length !== MAX_BODIES || realDt <= 0) {
@@ -522,7 +473,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
             });
         };
 
-        const frame = (now: number) => {
+        const frame = (now) => {
             const realDt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
             lastTime = now;
             step(realDt);
@@ -542,8 +493,8 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         const container = containerRef.current;
         if (!container) return;
 
-        const onWheel = (e: WheelEvent) => {
-            if ((e.target as HTMLElement).closest('.holst-ui')) return;
+        const onWheel = (e) => {
+            if (e.target.closest('.holst-ui')) return;
             e.preventDefault();
             const cursorX = e.clientX - window.innerWidth / 2;
             const cursorY = e.clientY - window.innerHeight / 2;
@@ -565,7 +516,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         return () => container.removeEventListener('wheel', onWheel);
     }, []);
 
-    const toScreen = (b: SimBody) => {
+    const toScreen = (b) => {
         const k = unitPxRef.current * scaleRef.current;
         return {
             x: window.innerWidth / 2 + offsetRef.current.x + b.x * k,
@@ -573,7 +524,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         };
     };
 
-    const toWorld = (sx: number, sy: number) => {
+    const toWorld = (sx, sy) => {
         const k = unitPxRef.current * scaleRef.current;
         return {
             x: (sx - window.innerWidth / 2 - offsetRef.current.x) / k,
@@ -581,7 +532,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         };
     };
 
-    const hitBody = (sx: number, sy: number): number | null => {
+    const hitBody = (sx, sy) => {
         const bodies = stateRef.current;
         for (let i = bodies.length - 1; i >= 0; i--) {
             const p = toScreen(bodies[i]);
@@ -592,7 +543,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         return null;
     };
 
-    const hitHandle = (sx: number, sy: number): number | null => {
+    const hitHandle = (sx, sy) => {
         const bodies = stateRef.current;
         const k = unitPxRef.current * scaleRef.current;
         for (let i = bodies.length - 1; i >= 0; i--) {
@@ -607,8 +558,8 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         return null;
     };
 
-    const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-        if ((e.target as HTMLElement).closest('.holst-ui')) return;
+    const handlePointerDown = (e) => {
+        if (e.target.closest('.holst-ui')) return;
         if (e.button !== 0 && e.button !== 1) return;
 
         setMenu(null);
@@ -651,7 +602,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         setCursorMode('grab');
     };
 
-    const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const handlePointerMove = (e) => {
         const drag = dragRef.current;
         if (drag.kind === 'none') return;
 
@@ -676,7 +627,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         commitEdit();
     };
 
-    const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const handlePointerUp = (e) => {
         if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId);
         }
@@ -684,8 +635,8 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         setCursorMode(!runningRef.current && stateRef.current.length < MAX_BODIES ? 'place' : 'pan');
     };
 
-    const handleDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-        if ((e.target as HTMLElement).closest('.holst-ui')) return;
+    const handleDoubleClick = (e) => {
+        if (e.target.closest('.holst-ui')) return;
         const index = hitBody(e.clientX, e.clientY);
         if (index === null) return;
 
@@ -704,12 +655,12 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         });
     };
 
-    const handleApplyBody = (index: number, patch: Partial<SimBody>) => {
+    const handleApplyBody = (index, patch) => {
         stateRef.current = stateRef.current.map((b, i) => (i === index ? { ...b, ...patch } : b));
         commitEdit();
     };
 
-    const handleDeleteBody = (index: number) => {
+    const handleDeleteBody = (index) => {
         stateRef.current = stateRef.current.filter((_, i) => i !== index);
         commitEdit();
         setMenu(null);
@@ -754,7 +705,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         setCursorMode('place');
     };
 
-    const adjustZoom = (delta: number) => {
+    const adjustZoom = (delta) => {
         const nextScale = Math.min(4, Math.max(0.2, Number((scale + delta).toFixed(2))));
         const ratio = nextScale / scale;
         setOffset((prev) => ({ x: prev.x * ratio, y: prev.y * ratio }));
@@ -766,7 +717,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
         setScale(1);
     };
 
-    const handleSpeedChange = (nextSpeed: number) => {
+    const handleSpeedChange = (nextSpeed) => {
         speedRef.current = nextSpeed;
         setSpeed(nextSpeed);
     };
@@ -885,7 +836,7 @@ export function HolstCanvas({ theme }: HolstCanvasProps) {
     );
 }
 
-function getHandlePosition(sx: number, sy: number, tipX: number, tipY: number, radius: number) {
+function getHandlePosition(sx, sy, tipX, tipY, radius) {
     const len = Math.hypot(tipX - sx, tipY - sy);
     const minLen = radius + 12;
     if (len >= minLen) {

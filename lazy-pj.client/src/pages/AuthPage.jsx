@@ -1,13 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import { api } from '../api';
-import type { AuthSession } from '../types';
 import { translateErrorMessage, validators } from '../utils/validation';
-
-interface AuthPageProps {
-    initialMode?: 'login' | 'register';
-    onSuccess: (session: AuthSession) => void;
-}
 
 const DEMO_USER_ACCOUNT = {
     email: 'user@lazypj.ru',
@@ -33,25 +26,25 @@ const REGISTER_GREETINGS = [
     'Добро пожаловать к нам',
 ];
 
-function pickRandomPhrase(list: string[], exclude?: string): string {
+function pickRandomPhrase(list, exclude) {
     const pool = exclude ? list.filter((item) => item !== exclude) : list;
     const source = pool.length > 0 ? pool : list;
     return source[Math.floor(Math.random() * source.length)];
 }
 
-export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
-    const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+export function AuthPage({ initialMode = 'login', onSuccess }) {
+    const [mode, setMode] = useState(initialMode);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [invalidField, setInvalidField] = useState<'name' | 'email' | 'password' | null>(null);
+    const [error, setError] = useState(null);
+    const [invalidField, setInvalidField] = useState(null);
     const [loginGreeting, setLoginGreeting] = useState(() => pickRandomPhrase(LOGIN_GREETINGS));
     const [registerGreeting, setRegisterGreeting] = useState(() => pickRandomPhrase(REGISTER_GREETINGS));
-    const [isDemoUserAvailable, setIsDemoUserAvailable] = useState<boolean>(false);
-    const [isDemoAdminAvailable, setIsDemoAdminAvailable] = useState<boolean>(false);
+    const [isDemoUserAvailable, setIsDemoUserAvailable] = useState(false);
+    const [isDemoAdminAvailable, setIsDemoAdminAvailable] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -73,7 +66,7 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
 
     const activeGreeting = mode === 'login' ? loginGreeting : registerGreeting;
 
-    const handleSwitchMode = (nextMode: 'login' | 'register') => {
+    const handleSwitchMode = (nextMode) => {
         setMode(nextMode);
         setError(null);
         setInvalidField(null);
@@ -84,7 +77,7 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
         }
     };
 
-    const handleSubmit = async (e: FormEvent) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
         setInvalidField(null);
@@ -126,7 +119,7 @@ export function AuthPage({ initialMode = 'login', onSuccess }: AuthPageProps) {
         }
     };
 
-    const handleDemoLogin = async (role: 'user' | 'admin') => {
+    const handleDemoLogin = async (role) => {
         if (role === 'user' && !isDemoUserAvailable) return;
         if (role === 'admin' && !isDemoAdminAvailable) return;
 

@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 import { api } from './api';
-import type { AuthSession } from './types';
 import { HolstCanvas } from './components/HolstCanvas';
 import { AuthPage } from './pages/AuthPage';
 import { CabinetPage } from './pages/CabinetPage';
 import { AdminPage } from './pages/AdminPage';
 
-type ActiveView = 'canvas' | 'auth' | 'cabinet' | 'admin';
-
 const THEME_STORAGE_KEY = 'lazypj_theme_v1';
 
-function getInitialTheme(): 'dark' | 'light' {
+function getInitialTheme() {
     try {
         const stored = localStorage.getItem(THEME_STORAGE_KEY);
         if (stored === 'light' || stored === 'dark') {
@@ -23,7 +20,7 @@ function getInitialTheme(): 'dark' | 'light' {
     return 'dark';
 }
 
-function maskEmail(email: string): string {
+function maskEmail(email) {
     const clean = (email || '').trim();
     const atIndex = clean.indexOf('@');
     if (atIndex <= 0) {
@@ -35,7 +32,7 @@ function maskEmail(email: string): string {
     return `${local.slice(0, visibleCount)}•••${domain}`;
 }
 
-function resolveHashView(session: AuthSession | null): ActiveView {
+function resolveHashView(session) {
     const hash = window.location.hash.replace('#/', '').replace('#', '');
     if (hash === 'admin' && session?.user.role === 'Admin') {
         return 'admin';
@@ -50,10 +47,10 @@ function resolveHashView(session: AuthSession | null): ActiveView {
 }
 
 export function App() {
-    const [session, setSession] = useState<AuthSession | null>(() => api.getSession());
-    const [view, setView] = useState<ActiveView>(() => resolveHashView(api.getSession()));
-    const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-    const [theme, setTheme] = useState<'dark' | 'light'>(() => getInitialTheme());
+    const [session, setSession] = useState(() => api.getSession());
+    const [view, setView] = useState(() => resolveHashView(api.getSession()));
+    const [authMode, setAuthMode] = useState('login');
+    const [theme, setTheme] = useState(() => getInitialTheme());
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -72,20 +69,20 @@ export function App() {
         return () => window.removeEventListener('hashchange', onHashChange);
     }, [session]);
 
-    const navigate = (target: ActiveView) => {
+    const navigate = (target) => {
         window.location.hash = target === 'canvas' ? '#/' : `#/${target}`;
         setView(target);
     };
 
-    const openAuth = (mode: 'login' | 'register') => {
+    const openAuth = (mode) => {
         setAuthMode(mode);
         window.location.hash = `#/${mode}`;
         setView('auth');
     };
 
-    const handleAuthSuccess = (newSession: AuthSession) => {
+    const handleAuthSuccess = (newSession) => {
         setSession(newSession);
-        const nextView: ActiveView = newSession.user.role === 'Admin' ? 'admin' : 'cabinet';
+        const nextView = newSession.user.role === 'Admin' ? 'admin' : 'cabinet';
         navigate(nextView);
     };
 

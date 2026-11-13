@@ -1,29 +1,20 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
 import { api } from '../api';
-import type { AuthSession } from '../types';
 import { translateErrorMessage, validators } from '../utils/validation';
-
-interface CabinetPageProps {
-    session: AuthSession;
-    onSessionUpdate: (session: AuthSession | null) => void;
-    onOpenAdmin?: () => void;
-    onLogout?: () => void;
-}
 
 const INVALID_STYLE = { borderColor: 'var(--accent)' };
 
-export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }: CabinetPageProps) {
+export function CabinetPage({ session, onSessionUpdate, onOpenAdmin, onLogout }) {
     const [editName, setEditName] = useState(session.user.name);
     const [editEmail, setEditEmail] = useState(session.user.email);
     const [editPassword, setEditPassword] = useState(session.user.password || '');
     const [savingProfile, setSavingProfile] = useState(false);
 
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [notice, setNotice] = useState<string | null>(null);
-    const [invalidField, setInvalidField] = useState<'name' | 'email' | 'password' | null>(null);
+    const [notice, setNotice] = useState(null);
+    const [invalidField, setInvalidField] = useState(null);
 
-    const handleSaveProfile = async (e: FormEvent) => {
+    const handleSaveProfile = async (e) => {
         e.preventDefault();
         setInvalidField(null);
 

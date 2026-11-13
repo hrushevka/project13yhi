@@ -1,39 +1,4 @@
-import type { BodyDto, PresetDetail } from '../types';
-
-export interface SimBody {
-    m: number;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-}
-
-interface ScratchBuffers {
-    cap: number;
-    bx: Float64Array;
-    by: Float64Array;
-    bvx: Float64Array;
-    bvy: Float64Array;
-    bm: Float64Array;
-    tx: Float64Array;
-    ty: Float64Array;
-    tvx2: Float64Array;
-    tvy2: Float64Array;
-    tvx3: Float64Array;
-    tvy3: Float64Array;
-    tvx4: Float64Array;
-    tvy4: Float64Array;
-    k1x: Float64Array;
-    k1y: Float64Array;
-    k2x: Float64Array;
-    k2y: Float64Array;
-    k3x: Float64Array;
-    k3y: Float64Array;
-    k4x: Float64Array;
-    k4y: Float64Array;
-}
-
-function makeScratch(cap: number): ScratchBuffers {
+function makeScratch(cap) {
     return {
         cap,
         bx: new Float64Array(cap),
@@ -62,23 +27,14 @@ function makeScratch(cap: number): ScratchBuffers {
 
 let scratch = makeScratch(8);
 
-function ensureScratch(n: number): ScratchBuffers {
+function ensureScratch(n) {
     if (n > scratch.cap) {
         scratch = makeScratch(n);
     }
     return scratch;
 }
 
-function computeAccelerations(
-    n: number,
-    px: Float64Array,
-    py: Float64Array,
-    pm: Float64Array,
-    G: number,
-    eps2: number,
-    ax: Float64Array,
-    ay: Float64Array
-): void {
+function computeAccelerations(n, px, py, pm, G, eps2, ax, ay) {
     for (let i = 0; i < n; i++) {
         ax[i] = 0;
         ay[i] = 0;
@@ -102,7 +58,7 @@ function computeAccelerations(
     }
 }
 
-export function minPairTimescale(state: SimBody[], G: number, softening: number): number {
+export function minPairTimescale(state, G, softening) {
     const n = state.length;
     if (n < 2 || G <= 0) return Infinity;
     const eps2 = softening * softening;
@@ -121,13 +77,7 @@ export function minPairTimescale(state: SimBody[], G: number, softening: number)
     return minTau;
 }
 
-export function stepBodiesInPlace(
-    state: SimBody[],
-    G: number,
-    softening: number,
-    dt: number,
-    steps = 1
-): void {
+export function stepBodiesInPlace(state, G, softening, dt, steps = 1) {
     const n = state.length;
     if (n === 0 || steps <= 0 || dt === 0) return;
 
@@ -189,13 +139,13 @@ export function stepBodiesInPlace(
     }
 }
 
-export function rk4Step(state: SimBody[], G: number, softening: number, dt: number): SimBody[] {
+export function rk4Step(state, G, softening, dt) {
     const next = state.map((b) => ({ ...b }));
     stepBodiesInPlace(next, G, softening, dt, 1);
     return next;
 }
 
-export const FALLBACK_PRESET: PresetDetail = {
+export const FALLBACK_PRESET = {
     id: 0,
     title: 'Восьмёрка',
     description: 'Демо-конфигурация Шенсине–Монтгомери',
@@ -213,7 +163,7 @@ export const FALLBACK_PRESET: PresetDetail = {
     canEdit: false,
 };
 
-export function toSimBodies(bodies: BodyDto[]): SimBody[] {
+export function toSimBodies(bodies) {
     return bodies.map((b) => ({
         m: b.mass,
         x: b.positionX,
@@ -223,7 +173,7 @@ export function toSimBodies(bodies: BodyDto[]): SimBody[] {
     }));
 }
 
-export function isStateFinite(state: SimBody[]): boolean {
+export function isStateFinite(state) {
     return state.every(
         (b) => Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy)
     );

@@ -1,4 +1,4 @@
-export function translateErrorMessage(raw: unknown): string {
+export function translateErrorMessage(raw) {
     if (!raw) {
         return 'Попробуйте позже';
     }
@@ -68,7 +68,7 @@ export function translateErrorMessage(raw: unknown): string {
 }
 
 export const validators = {
-    validateEmail(email: string): string | null {
+    validateEmail(email) {
         const value = email.trim();
         if (!value) {
             return 'Пожалуйста, укажите адрес электронной почты';
@@ -80,7 +80,7 @@ export const validators = {
         return null;
     },
 
-    validatePassword(password: string, minLength = 4): string | null {
+    validatePassword(password, minLength = 4) {
         if (!password || !password.trim()) {
             return 'Пожалуйста, введите пароль';
         }
@@ -90,7 +90,7 @@ export const validators = {
         return null;
     },
 
-    validateName(name: string): string | null {
+    validateName(name) {
         const value = name.trim();
         if (!value) {
             return 'Пожалуйста, укажите ваше имя';
@@ -104,7 +104,7 @@ export const validators = {
         return null;
     },
 
-    validateDescription(description: string): string | null {
+    validateDescription(description) {
         const value = description.trim();
         if (!value) {
             return 'Опишите суть вашей заявки перед отправкой';
@@ -118,7 +118,7 @@ export const validators = {
         return null;
     },
 
-    validateId(idInput: string): string | null {
+    validateId(idInput) {
         const value = idInput.trim();
         if (!value) {
             return 'Укажите числовой ID пользователя для проверки';

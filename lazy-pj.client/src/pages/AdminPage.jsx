@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import { api } from '../api';
-import type { AdminModel, UserModel } from '../types';
 import { translateErrorMessage, validators } from '../utils/validation';
 
 export function AdminPage() {
-    const [activeSection, setActiveSection] = useState<'users' | 'admins' | 'tools'>('users');
-    const [users, setUsers] = useState<UserModel[]>([]);
-    const [admins, setAdmins] = useState<AdminModel[]>([]);
-    const [notice, setNotice] = useState<string | null>(null);
+    const [activeSection, setActiveSection] = useState('users');
+    const [users, setUsers] = useState([]);
+    const [admins, setAdmins] = useState([]);
+    const [notice, setNotice] = useState(null);
 
     const [roleCheckId, setRoleCheckId] = useState('1');
-    const [roleCheckResult, setRoleCheckResult] = useState<string | null>(null);
+    const [roleCheckResult, setRoleCheckResult] = useState(null);
     const [invalidRoleId, setInvalidRoleId] = useState(false);
 
     const fetchAllAdminData = useCallback(async () => {
@@ -45,13 +43,13 @@ export function AdminPage() {
         setNotice('Демонстрационные данные успешно восстановлены.');
     };
 
-    const handleDeleteUser = async (id: number, email: string) => {
+    const handleDeleteUser = async (id, email) => {
         await api.deleteAccount(id);
         await loadAllData();
         setNotice(`Пользователь ${email} (ID #${id}) удалён.`);
     };
 
-    const handleCheckRole = async (e: FormEvent) => {
+    const handleCheckRole = async (e) => {
         e.preventDefault();
         setInvalidRoleId(false);
 

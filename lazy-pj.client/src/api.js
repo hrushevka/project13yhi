@@ -1,20 +1,10 @@
-import type {
-    AdminModel,
-    AuthSession,
-    AuthUser,
-    BodyDto,
-    PresetDetail,
-    PresetListItem,
-    UserModel,
-} from './types';
-
 const STORAGE_KEYS = {
     SESSION: 'lazypj_session_v1',
     USERS: 'lazypj_users_v1',
     ADMINS: 'lazypj_admins_v1',
 };
 
-const INITIAL_USERS: UserModel[] = [
+const INITIAL_USERS = [
     {
         id: 1,
         email: 'user@lazypj.ru',
@@ -35,7 +25,7 @@ const INITIAL_USERS: UserModel[] = [
     },
 ];
 
-const INITIAL_ADMINS: AdminModel[] = [
+const INITIAL_ADMINS = [
     {
         id: 100,
         email: 'admin@lazypj.ru',
@@ -44,18 +34,18 @@ const INITIAL_ADMINS: AdminModel[] = [
     },
 ];
 
-function isJsonResponse(response: Response): boolean {
+function isJsonResponse(response) {
     const contentType = response.headers.get('content-type') || '';
     return contentType.toLowerCase().includes('application/json');
 }
 
-function toNumber(raw: unknown, fallback: number): number {
+function toNumber(raw, fallback) {
     const n = Number(raw);
     return Number.isFinite(n) ? n : fallback;
 }
 
-function normalizeUser(raw: unknown, fallbackId = 1): UserModel {
-    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+function normalizeUser(raw, fallbackId = 1) {
+    const obj = raw && typeof raw === 'object' ? raw : {};
     const id = Number(obj.id ?? obj.Id ?? fallbackId);
     const email = String(obj.email ?? obj.Email ?? 'user@lazypj.ru');
     const name = String(obj.name ?? obj.Name ?? (email.split('@')[0] || 'Пользователь'));
@@ -68,8 +58,8 @@ function normalizeUser(raw: unknown, fallbackId = 1): UserModel {
     };
 }
 
-function normalizeAdmin(raw: unknown, fallbackId = 100): AdminModel {
-    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+function normalizeAdmin(raw, fallbackId = 100) {
+    const obj = raw && typeof raw === 'object' ? raw : {};
     const id = Number(obj.id ?? obj.Id ?? fallbackId);
     const email = String(obj.email ?? obj.Email ?? 'admin@lazypj.ru');
     const name = String(obj.name ?? obj.Name ?? (email.split('@')[0] || 'Администратор'));
@@ -82,8 +72,8 @@ function normalizeAdmin(raw: unknown, fallbackId = 100): AdminModel {
     };
 }
 
-function normalizeBody(raw: unknown): BodyDto {
-    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+function normalizeBody(raw) {
+    const obj = raw && typeof raw === 'object' ? raw : {};
     return {
         mass: toNumber(obj.mass ?? obj.Mass, 1),
         positionX: toNumber(obj.positionX ?? obj.PositionX, 0),
@@ -93,8 +83,8 @@ function normalizeBody(raw: unknown): BodyDto {
     };
 }
 
-function normalizePresetListItem(raw: unknown): PresetListItem {
-    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+function normalizePresetListItem(raw) {
+    const obj = raw && typeof raw === 'object' ? raw : {};
     const description = obj.description ?? obj.Description;
     const outcome = obj.outcome ?? obj.Outcome;
     const previewUrl = obj.previewUrl ?? obj.PreviewUrl;
@@ -110,8 +100,8 @@ function normalizePresetListItem(raw: unknown): PresetListItem {
     };
 }
 
-function normalizePresetDetail(raw: unknown): PresetDetail {
-    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+function normalizePresetDetail(raw) {
+    const obj = raw && typeof raw === 'object' ? raw : {};
     const rawBodies = obj.bodies ?? obj.Bodies;
     const description = obj.description ?? obj.Description;
     const outcome = obj.outcome ?? obj.Outcome;
@@ -131,7 +121,7 @@ function normalizePresetDetail(raw: unknown): PresetDetail {
     };
 }
 
-function getStoredUsers(): UserModel[] {
+function getStoredUsers() {
     try {
         const raw = localStorage.getItem(STORAGE_KEYS.USERS);
         if (!raw) {
@@ -149,7 +139,7 @@ function getStoredUsers(): UserModel[] {
     }
 }
 
-function saveStoredUsers(users: UserModel[]) {
+function saveStoredUsers(users) {
     try {
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
     } catch {
@@ -157,7 +147,7 @@ function saveStoredUsers(users: UserModel[]) {
     }
 }
 
-function getStoredAdmins(): AdminModel[] {
+function getStoredAdmins() {
     try {
         const raw = localStorage.getItem(STORAGE_KEYS.ADMINS);
         if (!raw) {
@@ -175,7 +165,7 @@ function getStoredAdmins(): AdminModel[] {
     }
 }
 
-function saveStoredAdmins(admins: AdminModel[]) {
+function saveStoredAdmins(admins) {
     try {
         localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(admins));
     } catch {
@@ -183,7 +173,7 @@ function saveStoredAdmins(admins: AdminModel[]) {
     }
 }
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
+function decodeJwtPayload(token) {
     try {
         const parts = token.split('.');
         if (parts.length < 2) return null;
@@ -200,7 +190,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
     }
 }
 
-function buildFakeJwt(user: AuthUser): string {
+function buildFakeJwt(user) {
     const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
     const payload = btoa(
         encodeURIComponent(
@@ -215,11 +205,11 @@ function buildFakeJwt(user: AuthUser): string {
     return `${header}.${payload}.lazypj-signature`;
 }
 
-function authHeaders(): Record<string, string> {
+function authHeaders() {
     try {
         const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
         if (!raw) return {};
-        const parsed = JSON.parse(raw) as AuthSession;
+        const parsed = JSON.parse(raw);
         if (parsed?.token && !parsed.token.endsWith('.lazypj-signature')) {
             return { Authorization: `Bearer ${parsed.token}` };
         }
@@ -230,11 +220,11 @@ function authHeaders(): Record<string, string> {
 }
 
 export const api = {
-    getSession(): AuthSession | null {
+    getSession() {
         try {
             const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
             if (!raw) return null;
-            const parsed = JSON.parse(raw) as AuthSession;
+            const parsed = JSON.parse(raw);
             if (!parsed || !parsed.user || typeof parsed.user.email !== 'string') {
                 return null;
             }
@@ -244,7 +234,7 @@ export const api = {
         }
     },
 
-    saveSession(session: AuthSession | null) {
+    saveSession(session) {
         if (!session) {
             localStorage.removeItem(STORAGE_KEYS.SESSION);
         } else {
@@ -252,10 +242,7 @@ export const api = {
         }
     },
 
-    resetDemoData(): {
-        users: UserModel[];
-        admins: AdminModel[];
-    } {
+    resetDemoData() {
         saveStoredUsers(INITIAL_USERS);
         saveStoredAdmins(INITIAL_ADMINS);
         return {
@@ -264,7 +251,7 @@ export const api = {
         };
     },
 
-    async checkAccountExistsInDb(email: string, password: string): Promise<boolean> {
+    async checkAccountExistsInDb(email, password) {
         try {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
@@ -287,7 +274,7 @@ export const api = {
         }
     },
 
-    async login(email: string, password: string): Promise<AuthSession> {
+    async login(email, password) {
         const cleanEmail = email.trim().toLowerCase();
 
         try {
@@ -304,24 +291,24 @@ export const api = {
 
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
-                const token: string = data.token;
+                const token = data.token;
                 const claims = decodeJwtPayload(token);
 
                 const roleClaim = String(
                     data.role ??
                         claims?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ??
-                        claims?.['role'] ??
+                        claims?.role ??
                         'user'
                 ).toLowerCase();
                 const idClaim =
                     Number(
                         claims?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ??
-                            claims?.['sub'] ??
+                            claims?.sub ??
                             1
                     ) || 1;
                 const nameClaim = claims?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
 
-                const authUser: AuthUser = {
+                const authUser = {
                     id: idClaim,
                     email: cleanEmail,
                     name:
@@ -332,7 +319,7 @@ export const api = {
                     password,
                 };
 
-                const session: AuthSession = { token, user: authUser };
+                const session = { token, user: authUser };
                 this.saveSession(session);
                 return session;
             }
@@ -346,14 +333,14 @@ export const api = {
         );
 
         if (matchedAdmin) {
-            const user: AuthUser = {
+            const user = {
                 id: matchedAdmin.id,
                 email: matchedAdmin.email,
                 name: matchedAdmin.name,
                 role: 'Admin',
                 password,
             };
-            const session: AuthSession = { token: buildFakeJwt(user), user };
+            const session = { token: buildFakeJwt(user), user };
             this.saveSession(session);
             return session;
         }
@@ -364,14 +351,14 @@ export const api = {
         );
 
         if (matchedUser) {
-            const user: AuthUser = {
+            const user = {
                 id: matchedUser.id,
                 email: matchedUser.email,
                 name: matchedUser.name,
                 role: 'User',
                 password,
             };
-            const session: AuthSession = { token: buildFakeJwt(user), user };
+            const session = { token: buildFakeJwt(user), user };
             this.saveSession(session);
             return session;
         }
@@ -379,7 +366,7 @@ export const api = {
         throw new Error('Неверный Email или пароль. Попробуйте демо-аккаунт ниже или зарегистрируйтесь.');
     },
 
-    async register(name: string, email: string, password: string): Promise<AuthSession> {
+    async register(name, email, password) {
         const cleanEmail = email.trim().toLowerCase();
         const cleanName = name.trim() || cleanEmail.split('@')[0];
 
@@ -427,7 +414,7 @@ export const api = {
         return this.login(cleanEmail, password);
     },
 
-    async editUser(updated: UserModel): Promise<UserModel> {
+    async editUser(updated) {
         try {
             const response = await fetch('/api/auth/edit', {
                 method: 'PUT',
@@ -450,7 +437,7 @@ export const api = {
         return updated;
     },
 
-    syncLocalUserUpdate(updated: UserModel) {
+    syncLocalUserUpdate(updated) {
         const users = getStoredUsers();
         const idx = users.findIndex((u) => u.id === updated.id);
         if (idx !== -1) {
@@ -477,7 +464,7 @@ export const api = {
         }
     },
 
-    async deleteAccount(id: number): Promise<void> {
+    async deleteAccount(id) {
         const session = this.getSession();
         try {
             await fetch(`/api/auth/delete/${id}`, {
@@ -495,7 +482,7 @@ export const api = {
         }
     },
 
-    async checkRoleById(id: number): Promise<string> {
+    async checkRoleById(id) {
         try {
             const response = await fetch(`/api/admin/users/${id}/role`, {
                 method: 'GET',
@@ -529,7 +516,7 @@ export const api = {
         throw new Error(`Пользователь с ID ${id} не найден в базе данных.`);
     },
 
-    async getAllUsers(): Promise<UserModel[]> {
+    async getAllUsers() {
         const localUsers = getStoredUsers();
         try {
             const response = await fetch('/api/admin/users', {
@@ -549,7 +536,7 @@ export const api = {
         return localUsers;
     },
 
-    async getAllAdmins(): Promise<AdminModel[]> {
+    async getAllAdmins() {
         const localAdmins = getStoredAdmins();
         try {
             const response = await fetch('/api/admin/admins', {
@@ -569,7 +556,7 @@ export const api = {
         return localAdmins;
     },
 
-    async getPublicPresets(search?: string, outcome?: string, page = 1): Promise<PresetListItem[]> {
+    async getPublicPresets(search, outcome, page = 1) {
         const params = new URLSearchParams();
         if (search) params.set('search', search);
         if (outcome) params.set('outcome', outcome);
@@ -590,7 +577,7 @@ export const api = {
         return [];
     },
 
-    async getMyPresets(page = 1): Promise<PresetListItem[]> {
+    async getMyPresets(page = 1) {
         try {
             const response = await fetch(`/api/presets/mine?page=${page}`, {
                 headers: authHeaders(),
@@ -607,7 +594,7 @@ export const api = {
         return [];
     },
 
-    async getPresetById(id: number): Promise<PresetDetail | null> {
+    async getPresetById(id) {
         try {
             const response = await fetch(`/api/presets/${id}`, {
                 headers: authHeaders(),
