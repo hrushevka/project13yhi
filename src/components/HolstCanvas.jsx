@@ -5,171 +5,41 @@ import {
     stepBodiesInPlace,
     toSimBodies,
     recenterToCM,
+    totalEnergy,
+    detectAndResolve,
 } from '../utils/physics';
 import { classify } from '../utils/classifier';
-import { PRESETS } from '../utils/presets';
+import { createStats, resetStats, sampleStats } from '../utils/stats';
+import { BodyMenu } from './BodyMenu';
+import { ControlPanel } from './ControlPanel';
+import { StatsPanel } from './StatsPanel';
+import { FinalReport } from './FinalReport';
+import { bodyRadius, cloneBodies, formatSimTime, COLORS } from './utils';
 
-const MIN_SPEED = 0.1;
-const MAX_SPEED = 10;
-const SPEED_STEP = 0.1;
 const MAX_BODIES = 3;
+const MIN_BODIES = 1;
 const MAX_TRAIL_POINTS = 900;
 const TRAIL_SAMPLE_TIME = 0.01;
 const GRID_STEP = 60;
 const MIN_ZOOM = 10;
 const MAX_ZOOM = 1000;
 const BASE_ZOOM = 120;
-const MIN_G = 0.1;
-const MAX_G = 5;
-const G_STEP = 0.1;
-const VEL_SCALE = 0.6;
+const STATS_RENDER_EVERY = 10;
 
-const OUTCOME_LABELS = {
-    collision: 'Столкновение',
-    ejection: 'Выброс',
-    stable: 'Стабильно',
-    unknown: 'Пауза',
-};
+const CONTACT_RADIUS = 0.15;
+const V_FRAG = 1.0;
+const Q_MIN = 0.2;
+const N_DEBRIS = 6;
+const DEBRIS_SPREAD = 0.8;
+const DEBRIS_MASS_FRACTION = 0.4;
 
-const COLORS = ['#ff4d4d', '#4d6bfe', '#4dff88'];
-
-const STARS = Array.from({ length: 120 }, (_, i) => ({
-    x: ((i * 73 + 19) % 997) / 997,
-    y: ((i * 151 + 43) % 991) / 991,
-    size: (i % 3) * 0.6 + 0.6,
-    alpha: ((i * 37) % 50) / 100 + 0.15,
-}));
-
-function bodyRadius(mass) {
-    return Math.max(6, Math.min(25, 6 + 5 * Math.cbrt(Math.max(mass, 0.0001))));
-}
-
-function cloneBodies(bodies) {
-    return bodies.map((b) => ({ ...b }));
-}
-
-function formatNumber(value) {
-    if (!Number.isFinite(value)) return '0';
-    return String(Number(value.toFixed(4)));
-}
-
-function formatSimTime(seconds) {
-    return `${seconds.toFixed(2)} с`;
-}
-
-function getVelocityHandleScreenPos(b, sx, sy, k, lineScale) {
-    const r = bodyRadius(b.m) * lineScale;
-    const tipX = sx + b.vx * VEL_SCALE * k;
-    const tipY = sy - b.vy * VEL_SCALE * k;
-    const len = Math.hypot(tipX - sx, tipY - sy);
-    if (len < r + 10 * lineScale) {
-        const angle = len > 1e-4 ? Math.atan2(tipY - sy, tipX - sx) : 0;
-        const dist = r + 14 * lineScale;
-        return {
-            x: sx + Math.cos(angle) * dist,
-            y: sy + Math.sin(angle) * dist,
-            isZero: len <= 1e-4,
-        };
-    }
-    return { x: tipX, y: tipY, isZero: false };
-}
-
-function BodyMenu({ menu, onApply, onDelete, onClose }) {
-    const [drafts, setDrafts] = useState(() => ({
-        m: formatNumber(menu.body.m),
-        x: formatNumber(menu.body.x),
-        y: formatNumber(menu.body.y),
-        vx: formatNumber(menu.body.vx),
-        vy: formatNumber(menu.body.vy),
-    }));
-
-    const [pos, setPos] = useState(() => ({
-        x: Math.max(10, Math.min(menu.x, window.innerWidth - 260)),
-        y: Math.max(60, Math.min(menu.y, window.innerHeight - 320)),
-    }));
-
-    const dragOffsetRef = useRef(null);
-
-    const handleChange = (key, raw) => {
-        setDrafts((prev) => ({ ...prev, [key]: raw }));
-        const value = Number(raw.replace(',', '.'));
-        if (raw.trim() !== '' && Number.isFinite(value) && (key !== 'm' || value > 0)) {
-            onApply(menu.index, { [key]: value });
-        }
+function attachContactRadius(body, idx) {
+    const mass = body.m || 1;
+    return {
+        ...body,
+        r: Math.max(CONTACT_RADIUS, 0.15 * Math.cbrt(mass)),
+        id: body.id || `body-${idx}-${Math.random().toString(36).slice(2, 8)}`,
     };
-
-    const handleMenuPointerDown = (e) => {
-        e.stopPropagation();
-        if (e.target.closest('input') || e.target.closest('button')) return;
-        e.currentTarget.setPointerCapture(e.pointerId);
-        dragOffsetRef.current = {
-            dx: e.clientX - pos.x,
-            dy: e.clientY - pos.y,
-        };
-    };
-
-    const handleMenuPointerMove = (e) => {
-        if (!dragOffsetRef.current) return;
-        e.stopPropagation();
-        const nextX = Math.max(10, Math.min(window.innerWidth - 250, e.clientX - dragOffsetRef.current.dx));
-        const nextY = Math.max(10, Math.min(window.innerHeight - 280, e.clientY - dragOffsetRef.current.dy));
-        setPos({ x: nextX, y: nextY });
-    };
-
-    const handleMenuPointerUp = (e) => {
-        if (!dragOffsetRef.current) return;
-        e.stopPropagation();
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-            e.currentTarget.releasePointerCapture(e.pointerId);
-        }
-        dragOffsetRef.current = null;
-    };
-
-    return (
-        <div
-            className="body-menu"
-            style={{ left: pos.x, top: pos.y }}
-            onPointerDown={handleMenuPointerDown}
-            onPointerMove={handleMenuPointerMove}
-            onPointerUp={handleMenuPointerUp}
-            onPointerCancel={handleMenuPointerUp}
-        >
-            <div className="body-menu-header">
-                <span>Тело {menu.index + 1}</span>
-                <button type="button" onClick={onClose}>X</button>
-            </div>
-            <div className="body-menu-grid">
-                {['m', 'x', 'y', 'vx', 'vy'].map((key) => (
-                    <div key={key} className="body-menu-field">
-                        <label>
-                            {key === 'm'
-                                ? 'Масса'
-                                : key === 'x'
-                                ? 'X'
-                                : key === 'y'
-                                ? 'Y'
-                                : key === 'vx'
-                                ? 'VX'
-                                : 'VY'}
-                        </label>
-                        <input
-                            type="text"
-                            value={drafts[key]}
-                            onChange={(e) => handleChange(key, e.target.value)}
-                        />
-                    </div>
-                ))}
-            </div>
-            <div className="body-menu-actions">
-                <button type="button" className="btn-danger" onClick={() => onDelete(menu.index)}>
-                    Удалить
-                </button>
-                <button type="button" className="btn-primary" onClick={onClose}>
-                    Готово
-                </button>
-            </div>
-        </div>
-    );
 }
 
 export function HolstCanvas() {
@@ -177,34 +47,56 @@ export function HolstCanvas() {
     const canvasRef = useRef(null);
 
     const [running, setRunning] = useState(false);
-    const [speed, setSpeed] = useState(1);
+    const [speed, setSpeed] = useState(100);
     const [outcome, setOutcome] = useState('unknown');
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState(null);
     const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+    const [showStats, setShowStats] = useState(true);
+    const [showReport, setShowReport] = useState(false);
+    const [statsView, setStatsView] = useState(() => ({ ...createStats() }));
 
     const [gravity, setGravity] = useState(FALLBACK_PRESET.g ?? 1);
+    const [softening, setSoftening] = useState(FALLBACK_PRESET.softening ?? 0);
+    const [dt, setDt] = useState(FALLBACK_PRESET.dt || 0.0001);
 
     const timeTextRef = useRef(null);
     const runningRef = useRef(running);
     const speedRef = useRef(speed);
     const gravityRef = useRef(gravity);
-    const dtRef = useRef(FALLBACK_PRESET.dt || 0.0001);
+    const softeningRef = useRef(softening);
+    const dtRef = useRef(dt);
+    const hasCollidedRef = useRef(false);
 
     const cameraRef = useRef({ x: 0, y: 0, zoom: BASE_ZOOM });
-
-    const stateRef = useRef(toSimBodies(FALLBACK_PRESET.bodies));
-    const setupRef = useRef(toSimBodies(FALLBACK_PRESET.bodies));
+    const stateRef = useRef(toSimBodies(FALLBACK_PRESET.bodies).map(attachContactRadius));
+    const setupRef = useRef(toSimBodies(FALLBACK_PRESET.bodies).map(attachContactRadius));
     const trailsRef = useRef([[], [], []]);
     const simTimeRef = useRef(0);
     const trailClockRef = useRef(0);
+    const statsRef = useRef(createStats());
+    const frameCounterRef = useRef(0);
 
     const dragRef = useRef({ kind: 'none' });
     const selectedRef = useRef(null);
+    const starsRef = useRef([]);
+
+    if (starsRef.current.length === 0) {
+        for (let i = 0; i < 150; i++) {
+            starsRef.current.push({
+                x: Math.random(),
+                y: Math.random(),
+                size: Math.random() * 2,
+                alpha: Math.random() * 0.5 + 0.2,
+            });
+        }
+    }
 
     useEffect(() => { runningRef.current = running; }, [running]);
     useEffect(() => { speedRef.current = speed; }, [speed]);
     useEffect(() => { gravityRef.current = gravity; }, [gravity]);
+    useEffect(() => { softeningRef.current = softening; }, [softening]);
+    useEffect(() => { dtRef.current = dt; }, [dt]);
     useEffect(() => { selectedRef.current = menu ? menu.index : null; }, [menu]);
 
     const syncTimeText = useCallback(() => {
@@ -213,32 +105,109 @@ export function HolstCanvas() {
 
     useEffect(() => { syncTimeText(); });
 
+    const refreshStatsView = useCallback(() => {
+        setStatsView({ ...statsRef.current });
+    }, []);
+
+    const resetMeta = useCallback(() => {
+        hasCollidedRef.current = false;
+    }, []);
+
     const commitEdit = useCallback(() => {
+        recenterToCM(stateRef.current);
         trailsRef.current = stateRef.current.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
         setupRef.current = cloneBodies(stateRef.current);
+        resetMeta();
+        resetStats(statsRef.current, stateRef.current, gravityRef.current, softeningRef.current, dtRef.current);
         syncTimeText();
         setBodyCount(stateRef.current.length);
         setOutcome('unknown');
-    }, [syncTimeText]);
+        refreshStatsView();
+    }, [syncTimeText, resetMeta, refreshStatsView]);
 
-    const setNewBodies = useCallback((bodies, g, newDt) => {
-        stateRef.current = cloneBodies(bodies);
+    const setNewBodies = useCallback((bodies, g, softeningValue, newDt) => {
+        stateRef.current = bodies.map(attachContactRadius);
         recenterToCM(stateRef.current);
         setupRef.current = cloneBodies(stateRef.current);
         trailsRef.current = bodies.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
-        dtRef.current = newDt > 0 ? newDt : 0.0001;
+        const cleanDt = newDt > 0 ? newDt : 0.0001;
+        setDt(cleanDt);
+        dtRef.current = cleanDt;
         setGravity(g);
         gravityRef.current = g;
+        setSoftening(softeningValue ?? 0);
+        softeningRef.current = softeningValue ?? 0;
         cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
+        resetMeta();
+        resetStats(statsRef.current, stateRef.current, g, softeningValue ?? 0, cleanDt);
         syncTimeText();
         setBodyCount(bodies.length);
         setOutcome('unknown');
         setRunning(false);
-    }, [syncTimeText]);
+        refreshStatsView();
+    }, [syncTimeText, resetMeta, refreshStatsView]);
+
+    const processStep = useCallback((H) => {
+        const state = stateRef.current;
+        stepBodiesInPlace(state, gravityRef.current, softeningRef.current, H);
+
+        const result = detectAndResolve(state, H, {
+            vFrag: V_FRAG,
+            qMin: Q_MIN,
+            nDebris: N_DEBRIS,
+            spread: DEBRIS_SPREAD,
+            debrisMassFraction: DEBRIS_MASS_FRACTION,
+            onEvent: (ev) => {
+                if (ev.kind === 'merge' || ev.kind === 'fragment') {
+                    hasCollidedRef.current = true;
+                }
+                if (ev.kind === 'fragment') {
+                    state.push(...ev.debris.map((d) => ({ ...d, r: Math.max(d.r, 0.02) })));
+                }
+            },
+        });
+
+        recenterToCM(state);
+        simTimeRef.current += H;
+        trailClockRef.current += H;
+
+        if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
+            trailClockRef.current = 0;
+            for (let i = 0; i < state.length; i++) {
+                const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
+                trail.push({ x: state[i].x, y: state[i].y });
+                if (trail.length > MAX_TRAIL_POINTS) trail.shift();
+            }
+        }
+
+        const energy = totalEnergy(state, gravityRef.current, softeningRef.current);
+        sampleStats(statsRef.current, state, simTimeRef.current, energy, result.events);
+
+        return result;
+    }, []);
+
+    const updateOutcome = useCallback(() => {
+        const result = classify(
+            stateRef.current,
+            gravityRef.current,
+            softeningRef.current,
+            hasCollidedRef.current
+        );
+        setOutcome(result);
+    }, []);
+
+    const advanceOneStep = useCallback(() => {
+        if (stateRef.current.length < MIN_BODIES) return;
+        processStep(dtRef.current);
+        updateOutcome();
+        setBodyCount(stateRef.current.length);
+        syncTimeText();
+        refreshStatsView();
+    }, [processStep, updateOutcome, syncTimeText, refreshStatsView]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -264,33 +233,18 @@ export function HolstCanvas() {
 
         const step = () => {
             const state = stateRef.current;
-            if (!runningRef.current || state.length !== MAX_BODIES) return;
+            if (!runningRef.current || state.length < MIN_BODIES) return;
 
             for (let i = 0; i < state.length; i++) {
                 const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
                 if (trail.length === 0) trail.push({ x: state[i].x, y: state[i].y });
             }
 
-            const g = gravityRef.current;
             const H = dtRef.current;
-            const currentSpeed = Math.max(0.01, Number(speedRef.current) || 0.1);
-            const stepCount = Math.max(1, Math.min(4000, Math.round((currentSpeed / 60) / H)));
+            const stepCount = Math.max(1, Number(speedRef.current) || 1);
 
             for (let s = 0; s < stepCount; s++) {
-                stepBodiesInPlace(state, g, 0, H);
-                recenterToCM(state);
-
-                simTimeRef.current += H;
-                trailClockRef.current += H;
-
-                if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
-                    trailClockRef.current = 0;
-                    for (let i = 0; i < state.length; i++) {
-                        const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
-                        trail.push({ x: state[i].x, y: state[i].y });
-                        if (trail.length > MAX_TRAIL_POINTS) trail.shift();
-                    }
-                }
+                processStep(H);
             }
 
             if (!isStateFinite(state)) {
@@ -299,8 +253,14 @@ export function HolstCanvas() {
                 return;
             }
 
-            setOutcome(classify(state, g, 0));
+            updateOutcome();
+            setBodyCount(state.length);
             syncTimeText();
+
+            frameCounterRef.current += 1;
+            if (frameCounterRef.current % STATS_RENDER_EVERY === 0) {
+                refreshStatsView();
+            }
         };
 
         const draw = () => {
@@ -313,7 +273,7 @@ export function HolstCanvas() {
 
             ctx.clearRect(0, 0, width, height);
 
-            STARS.forEach((star) => {
+            starsRef.current.forEach((star) => {
                 ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
                 ctx.beginPath();
                 ctx.arc(star.x * width, star.y * height, star.size, 0, Math.PI * 2);
@@ -328,23 +288,19 @@ export function HolstCanvas() {
                 const startY = ((cy % gridStep) + gridStep) % gridStep;
                 ctx.beginPath();
                 for (let x = startX; x < width; x += gridStep) {
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, height);
+                    ctx.moveTo(x, 0); ctx.lineTo(x, height);
                 }
                 for (let y = startY; y < height; y += gridStep) {
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width, y);
+                    ctx.moveTo(0, y); ctx.lineTo(width, y);
                 }
                 ctx.stroke();
             }
 
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(cx, 0);
-            ctx.lineTo(cx, height);
-            ctx.moveTo(0, cy);
-            ctx.lineTo(width, cy);
+            ctx.moveTo(cx, 0); ctx.lineTo(cx, height);
+            ctx.moveTo(0, cy); ctx.lineTo(width, cy);
             ctx.stroke();
 
             const lineScale = k / BASE_ZOOM;
@@ -365,48 +321,53 @@ export function HolstCanvas() {
             });
             ctx.globalAlpha = 1.0;
 
+            const bodies = stateRef.current;
+            if (bodies.length >= 2 && bodies.length <= 6) {
+                ctx.strokeStyle = 'rgba(77, 107, 254, 0.25)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                for (let i = 0; i < bodies.length; i++) {
+                    for (let j = i + 1; j < bodies.length; j++) {
+                        const a = { x: cx + bodies[i].x * k, y: cy - bodies[i].y * k };
+                        const b = { x: cx + bodies[j].x * k, y: cy - bodies[j].y * k };
+                        ctx.beginPath();
+                        ctx.moveTo(a.x, a.y);
+                        ctx.lineTo(b.x, b.y);
+                        ctx.stroke();
+                    }
+                }
+                ctx.setLineDash([]);
+            }
+
             stateRef.current.forEach((b, i) => {
                 const sx = cx + b.x * k;
                 const sy = cy - b.y * k;
-                const r = bodyRadius(b.m) * lineScale;
+                const r = Math.max(2, bodyRadius(b.m) * lineScale * (b.isDebris ? 0.5 : 1));
 
-                if (editing) {
-                    const handle = getVelocityHandleScreenPos(b, sx, sy, k, lineScale);
-                    const angle = Math.atan2(handle.y - sy, handle.x - sx);
-                    const head = Math.max(6, 8 * lineScale);
-
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                    ctx.lineWidth = Math.max(1, 1.5 * lineScale);
-                    ctx.beginPath();
-                    ctx.moveTo(sx, sy);
-                    ctx.lineTo(handle.x, handle.y);
-                    ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.moveTo(handle.x, handle.y);
-                    ctx.lineTo(
-                        handle.x - head * Math.cos(angle - Math.PI / 6),
-                        handle.y - head * Math.sin(angle - Math.PI / 6)
-                    );
-                    ctx.lineTo(
-                        handle.x - head * Math.cos(angle + Math.PI / 6),
-                        handle.y - head * Math.sin(angle + Math.PI / 6)
-                    );
-                    ctx.closePath();
-                    ctx.fill();
-
-                    const handleSize = Math.max(6, 7 * lineScale);
-                    ctx.fillStyle = '#d97706';
-                    ctx.fillRect(
-                        handle.x - handleSize / 2,
-                        handle.y - handleSize / 2,
-                        handleSize,
-                        handleSize
-                    );
+                if (editing && !b.isDebris) {
+                    const tipX = sx + b.vx * 0.6 * k;
+                    const tipY = sy - b.vy * 0.6 * k;
+                    const len = Math.hypot(tipX - sx, tipY - sy);
+                    if (len > r + 4 * lineScale) {
+                        const angle = Math.atan2(tipY - sy, tipX - sx);
+                        const head = 8 * lineScale;
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                        ctx.lineWidth = Math.max(1, 1 * lineScale);
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(tipX, tipY);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(tipX, tipY);
+                        ctx.lineTo(tipX - head * Math.cos(angle - Math.PI / 6), tipY - head * Math.sin(angle - Math.PI / 6));
+                        ctx.lineTo(tipX - head * Math.cos(angle + Math.PI / 6), tipY - head * Math.sin(angle + Math.PI / 6));
+                        ctx.closePath();
+                        ctx.fill();
+                    }
                 }
 
-                ctx.fillStyle = COLORS[i % COLORS.length];
+                ctx.fillStyle = b.isDebris ? 'rgba(255,200,120,0.85)' : COLORS[i % COLORS.length];
                 ctx.beginPath();
                 ctx.arc(sx, sy, r, 0, Math.PI * 2);
                 ctx.fill();
@@ -461,7 +422,7 @@ export function HolstCanvas() {
             window.removeEventListener('resize', resize);
             canvas.removeEventListener('wheel', handleNativeWheel);
         };
-    }, [syncTimeText]);
+    }, [syncTimeText, processStep, updateOutcome, refreshStatsView]);
 
     const getMousePos = (e) => {
         const rect = canvasRef.current.getBoundingClientRect();
@@ -469,44 +430,31 @@ export function HolstCanvas() {
     };
 
     const toScreen = (b) => {
-        const rect = canvasRef.current.getBoundingClientRect();
+        const width = canvasRef.current.getBoundingClientRect().width;
+        const height = canvasRef.current.getBoundingClientRect().height;
         const k = cameraRef.current.zoom;
         return {
-            x: rect.width / 2 + cameraRef.current.x + b.x * k,
-            y: rect.height / 2 + cameraRef.current.y - b.y * k,
+            x: width / 2 + cameraRef.current.x + b.x * k,
+            y: height / 2 + cameraRef.current.y - b.y * k,
         };
     };
 
     const toWorld = (mousePos) => {
-        const rect = canvasRef.current.getBoundingClientRect();
+        const width = canvasRef.current.getBoundingClientRect().width;
+        const height = canvasRef.current.getBoundingClientRect().height;
         const k = cameraRef.current.zoom;
         return {
-            x: (mousePos.x - rect.width / 2 - cameraRef.current.x) / k,
-            y: -(mousePos.y - rect.height / 2 - cameraRef.current.y) / k,
+            x: (mousePos.x - width / 2 - cameraRef.current.x) / k,
+            y: -(mousePos.y - height / 2 - cameraRef.current.y) / k,
         };
-    };
-
-    const hitVelocityHandle = (mousePos) => {
-        const bodies = stateRef.current;
-        const k = cameraRef.current.zoom;
-        const lineScale = k / BASE_ZOOM;
-        for (let i = bodies.length - 1; i >= 0; i--) {
-            const p = toScreen(bodies[i]);
-            const handle = getVelocityHandleScreenPos(bodies[i], p.x, p.y, k, lineScale);
-            if (Math.hypot(mousePos.x - handle.x, mousePos.y - handle.y) <= 14) {
-                return i;
-            }
-        }
-        return null;
     };
 
     const hitBody = (mousePos) => {
         const bodies = stateRef.current;
-        const k = cameraRef.current.zoom;
-        const lineScale = k / BASE_ZOOM;
         for (let i = bodies.length - 1; i >= 0; i--) {
+            if (bodies[i].isDebris) continue;
             const p = toScreen(bodies[i]);
-            const clickRadius = Math.max(bodyRadius(bodies[i].m) * lineScale + 10, 18);
+            const clickRadius = Math.max(bodyRadius(bodies[i].m) + 20, 30);
             if (Math.hypot(mousePos.x - p.x, mousePos.y - p.y) <= clickRadius) {
                 return i;
             }
@@ -515,68 +463,35 @@ export function HolstCanvas() {
     };
 
     const handlePointerDown = (e) => {
-        if (
-            e.target.closest('.body-menu') ||
-            e.target.closest('.sim-panel-wrapper') ||
-            e.target.closest('.top-navbar')
-        ) {
-            return;
-        }
+        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.top-navbar') || e.target.closest('.stats-panel')) return;
         setMenu(null);
         e.currentTarget.setPointerCapture(e.pointerId);
 
         const mousePos = getMousePos(e);
 
         if (e.button === 1 || e.button === 2) {
-            dragRef.current = {
-                kind: 'pan',
-                startX: mousePos.x,
-                startY: mousePos.y,
-                camX: cameraRef.current.x,
-                camY: cameraRef.current.y,
-            };
+            dragRef.current = { kind: 'pan', startX: mousePos.x, startY: mousePos.y, camX: cameraRef.current.x, camY: cameraRef.current.y };
             return;
         }
 
         if (e.button === 0 && !runningRef.current) {
-            const velIndex = hitVelocityHandle(mousePos);
-            if (velIndex !== null) {
-                dragRef.current = { kind: 'velocity', index: velIndex };
-                return;
-            }
-
             const bodyIndex = hitBody(mousePos);
             if (bodyIndex !== null) {
                 const world = toWorld(mousePos);
                 const b = stateRef.current[bodyIndex];
-                dragRef.current = {
-                    kind: 'move',
-                    index: bodyIndex,
-                    dx: b.x - world.x,
-                    dy: b.y - world.y,
-                };
+                dragRef.current = { kind: 'move', index: bodyIndex, dx: b.x - world.x, dy: b.y - world.y };
                 return;
             }
-
             if (stateRef.current.length < MAX_BODIES) {
                 const world = toWorld(mousePos);
-                const newIndex = stateRef.current.length;
+                const idx = stateRef.current.length;
                 stateRef.current = [
                     ...stateRef.current,
-                    { m: 1, x: world.x, y: world.y, vx: 0, vy: 0 },
+                    attachContactRadius({ m: 1, x: world.x, y: world.y, vx: 0, vy: 0 }, idx),
                 ];
                 commitEdit();
-                dragRef.current = { kind: 'velocity', index: newIndex };
                 return;
             }
-
-            dragRef.current = {
-                kind: 'pan',
-                startX: mousePos.x,
-                startY: mousePos.y,
-                camX: cameraRef.current.x,
-                camY: cameraRef.current.y,
-            };
         }
     };
 
@@ -595,39 +510,19 @@ export function HolstCanvas() {
                 if (i !== drag.index) return b;
                 return { ...b, x: world.x + drag.dx, y: world.y + drag.dy };
             });
-        } else if (drag.kind === 'velocity') {
-            const world = toWorld(mousePos);
-            stateRef.current = stateRef.current.map((b, i) => {
-                if (i !== drag.index) return b;
-                const vx = (world.x - b.x) / VEL_SCALE;
-                const vy = (world.y - b.y) / VEL_SCALE;
-                return {
-                    ...b,
-                    vx: Math.hypot(vx, vy) < 0.03 ? 0 : vx,
-                    vy: Math.hypot(vx, vy) < 0.03 ? 0 : vy,
-                };
-            });
         }
     };
 
     const handlePointerUp = (e) => {
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-            e.currentTarget.releasePointerCapture(e.pointerId);
-        }
-        if (dragRef.current.kind === 'move' || dragRef.current.kind === 'velocity') {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+        if (dragRef.current.kind === 'move') {
             commitEdit();
         }
         dragRef.current = { kind: 'none' };
     };
 
     const handleDoubleClick = (e) => {
-        if (
-            e.target.closest('.body-menu') ||
-            e.target.closest('.sim-panel-wrapper') ||
-            e.target.closest('.top-navbar')
-        ) {
-            return;
-        }
+        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.top-navbar') || e.target.closest('.stats-panel')) return;
         const mousePos = getMousePos(e);
         const index = hitBody(mousePos);
         if (index === null) return;
@@ -645,7 +540,7 @@ export function HolstCanvas() {
     };
 
     const handleApplyBody = (index, patch) => {
-        stateRef.current = stateRef.current.map((b, i) => (i === index ? { ...b, ...patch } : b));
+        stateRef.current = stateRef.current.map((b, i) => (i === index ? attachContactRadius({ ...b, ...patch }, i) : b));
         commitEdit();
     };
 
@@ -655,28 +550,13 @@ export function HolstCanvas() {
         setMenu(null);
     };
 
-    const handleCustomSpeedChange = (e) => {
-        const raw = e.target.value;
-        if (raw === '') {
-            setSpeed('');
-            return;
-        }
-        const num = Number(raw);
-        if (Number.isFinite(num) && num >= 0) {
-            setSpeed(num);
-        }
+    const resetCamera = () => {
+        cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
     };
 
-    const handleCustomGravityChange = (e) => {
-        const raw = e.target.value;
-        if (raw === '') {
-            setGravity('');
-            return;
-        }
-        const num = Number(raw);
-        if (Number.isFinite(num) && num >= 0) {
-            setGravity(num);
-        }
+    const renderEnergy = () => {
+        const e = totalEnergy(stateRef.current, gravityRef.current, softeningRef.current);
+        return Number.isFinite(e) ? e.toFixed(6) : '—';
     };
 
     return (
@@ -694,7 +574,6 @@ export function HolstCanvas() {
                 <canvas ref={canvasRef} className="holst-sim-canvas" />
                 {menu && (
                     <BodyMenu
-                        key={menu.index}
                         menu={menu}
                         onApply={handleApplyBody}
                         onDelete={handleDeleteBody}
@@ -703,120 +582,58 @@ export function HolstCanvas() {
                 )}
             </div>
 
-            <div className="sim-panel-wrapper">
-                <div className="sim-panel">
-                    <div className="sim-panel-top">
-                        <div className="sim-top-actions">
-                            <button
-                                type="button"
-                                className="btn-primary"
-                                onClick={() => {
-                                    if (bodyCount === MAX_BODIES) setRunning(!running);
-                                }}
-                                disabled={bodyCount !== MAX_BODIES}
-                            >
-                                {running ? 'Пауза' : 'Запуск'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setRunning(false);
-                                    stateRef.current = cloneBodies(setupRef.current);
-                                    trailsRef.current = stateRef.current.map(() => []);
-                                    simTimeRef.current = 0;
-                                    trailClockRef.current = 0;
-                                    setOutcome('unknown');
-                                    syncTimeText();
-                                }}
-                            >
-                                Сброс
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setRunning(false);
-                                    stateRef.current = [];
-                                    commitEdit();
-                                }}
-                            >
-                                Очистить
-                            </button>
-                            <span className="sim-time" ref={timeTextRef}>0.00 с</span>
-                        </div>
+            {showStats && <StatsPanel stats={statsView} />}
 
-                        <button
-                            type="button"
-                            className="sim-toggle-btn"
-                            onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
-                        >
-                            {isPanelCollapsed ? '▲' : '▼'}
-                        </button>
-                    </div>
+            {showReport && (
+                <FinalReport
+                    stats={statsView}
+                    outcome={outcome}
+                    onClose={() => setShowReport(false)}
+                />
+            )}
 
-                    {!isPanelCollapsed && (
-                        <div className="sim-panel-body">
-                            <div className="sim-row">
-                                <span className="sim-label">Время:</span>
-                                <input
-                                    type="range"
-                                    min={MIN_SPEED}
-                                    max={MAX_SPEED}
-                                    step={SPEED_STEP}
-                                    value={Math.min(MAX_SPEED, Math.max(MIN_SPEED, Number(speed) || MIN_SPEED))}
-                                    onChange={(e) => setSpeed(Number(e.target.value))}
-                                />
-                                <div className="sim-input-unit">
-                                    <input
-                                        type="number"
-                                        step={SPEED_STEP}
-                                        min="0.01"
-                                        className="sim-value-input"
-                                        value={speed}
-                                        onChange={handleCustomSpeedChange}
-                                    />
-                                    <span>с</span>
-                                </div>
-
-                                <span className="sim-label">Гравитация:</span>
-                                <input
-                                    type="range"
-                                    min={MIN_G}
-                                    max={MAX_G}
-                                    step={G_STEP}
-                                    value={Math.min(MAX_G, Math.max(MIN_G, Number(gravity) || MIN_G))}
-                                    onChange={(e) => setGravity(Number(e.target.value))}
-                                />
-                                <input
-                                    type="number"
-                                    step={G_STEP}
-                                    min="0"
-                                    className="sim-value-input"
-                                    value={gravity}
-                                    onChange={handleCustomGravityChange}
-                                />
-
-                                <span className="sim-status">
-                                    {OUTCOME_LABELS[outcome]}
-                                </span>
-                            </div>
-
-                            <div className="sim-row">
-                                <div className="sim-presets">
-                                    {PRESETS.map((p) => (
-                                        <button
-                                            key={p.name}
-                                            type="button"
-                                            onClick={() => setNewBodies(p.bodies, p.g, p.dt)}
-                                        >
-                                            {p.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <ControlPanel
+                isPanelCollapsed={isPanelCollapsed}
+                setIsPanelCollapsed={setIsPanelCollapsed}
+                running={running}
+                setRunning={setRunning}
+                bodyCount={bodyCount}
+                maxBodies={MAX_BODIES}
+                outcome={outcome}
+                timeTextRef={timeTextRef}
+                speed={speed}
+                setSpeed={setSpeed}
+                dt={dt}
+                setDt={setDt}
+                gravity={gravity}
+                setGravity={setGravity}
+                softening={softening}
+                setSoftening={setSoftening}
+                showStats={showStats}
+                setShowStats={setShowStats}
+                onShowReport={() => { refreshStatsView(); setShowReport(true); }}
+                onReset={() => {
+                    setRunning(false);
+                    stateRef.current = cloneBodies(setupRef.current);
+                    trailsRef.current = stateRef.current.map(() => []);
+                    simTimeRef.current = 0;
+                    resetMeta();
+                    resetStats(statsRef.current, stateRef.current, gravityRef.current, softeningRef.current, dtRef.current);
+                    setOutcome('unknown');
+                    setBodyCount(stateRef.current.length);
+                    syncTimeText();
+                    refreshStatsView();
+                }}
+                onClear={() => {
+                    setRunning(false);
+                    stateRef.current = [];
+                    commitEdit();
+                }}
+                onStep={advanceOneStep}
+                onCenter={resetCamera}
+                onPresetSelect={(p) => setNewBodies(p.bodies, p.g, p.softening, p.dt)}
+                renderEnergy={renderEnergy}
+            />
         </div>
     );
 }

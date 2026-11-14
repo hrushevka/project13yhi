@@ -5,33 +5,13 @@ const STORAGE_KEYS = {
 };
 
 const INITIAL_USERS = [
-    {
-        id: 1,
-        email: 'user@lazypj.ru',
-        name: 'Алексей Смирнов',
-        password: 'password123',
-    },
-    {
-        id: 2,
-        email: 'elena@lazypj.ru',
-        name: 'Елена Волкова',
-        password: 'password123',
-    },
-    {
-        id: 3,
-        email: 'dmitry@lazypj.ru',
-        name: 'Дмитрий Соколов',
-        password: 'password123',
-    },
+    { id: 1, email: 'user@lazypj.ru', name: 'Алексей Смирнов', password: 'password123' },
+    { id: 2, email: 'elena@lazypj.ru', name: 'Елена Волкова', password: 'password123' },
+    { id: 3, email: 'dmitry@lazypj.ru', name: 'Дмитрий Соколов', password: 'password123' },
 ];
 
 const INITIAL_ADMINS = [
-    {
-        id: 100,
-        email: 'admin@lazypj.ru',
-        name: 'Главный Администратор',
-        password: 'adminpassword',
-    },
+    { id: 100, email: 'admin@lazypj.ru', name: 'Главный Администратор', password: 'adminpassword' },
 ];
 
 function isJsonResponse(response) {
@@ -225,9 +205,7 @@ export const api = {
             const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
             if (!raw) return null;
             const parsed = JSON.parse(raw);
-            if (!parsed || !parsed.user || typeof parsed.user.email !== 'string') {
-                return null;
-            }
+            if (!parsed || !parsed.user || typeof parsed.user.email !== 'string') return null;
             return parsed;
         } catch {
             return null;
@@ -235,20 +213,14 @@ export const api = {
     },
 
     saveSession(session) {
-        if (!session) {
-            localStorage.removeItem(STORAGE_KEYS.SESSION);
-        } else {
-            localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
-        }
+        if (!session) localStorage.removeItem(STORAGE_KEYS.SESSION);
+        else localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
     },
 
     resetDemoData() {
         saveStoredUsers(INITIAL_USERS);
         saveStoredAdmins(INITIAL_ADMINS);
-        return {
-            users: [...INITIAL_USERS],
-            admins: [...INITIAL_ADMINS],
-        };
+        return { users: [...INITIAL_USERS], admins: [...INITIAL_ADMINS] };
     },
 
     async checkAccountExistsInDb(email, password) {
@@ -256,14 +228,8 @@ export const api = {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: 0,
-                    email: email.trim(),
-                    name: '',
-                    password,
-                }),
+                body: JSON.stringify({ id: 0, email: email.trim(), name: '', password }),
             });
-
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
                 return Boolean(data?.token);
@@ -276,24 +242,16 @@ export const api = {
 
     async login(email, password) {
         const cleanEmail = email.trim().toLowerCase();
-
         try {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: 0,
-                    email: cleanEmail,
-                    name: '',
-                    password,
-                }),
+                body: JSON.stringify({ id: 0, email: cleanEmail, name: '', password }),
             });
-
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
                 const token = data.token;
                 const claims = decodeJwtPayload(token);
-
                 const roleClaim = String(
                     data.role ??
                         claims?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ??
@@ -307,18 +265,13 @@ export const api = {
                             1
                     ) || 1;
                 const nameClaim = claims?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
-
                 const authUser = {
                     id: idClaim,
                     email: cleanEmail,
-                    name:
-                        typeof nameClaim === 'string' && nameClaim.trim()
-                            ? nameClaim
-                            : cleanEmail.split('@')[0],
+                    name: typeof nameClaim === 'string' && nameClaim.trim() ? nameClaim : cleanEmail.split('@')[0],
                     role: roleClaim === 'admin' ? 'Admin' : 'User',
                     password,
                 };
-
                 const session = { token, user: authUser };
                 this.saveSession(session);
                 return session;
@@ -331,15 +284,8 @@ export const api = {
         const matchedAdmin = admins.find(
             (a) => a.email.toLowerCase() === cleanEmail && (a.password === password || !a.password)
         );
-
         if (matchedAdmin) {
-            const user = {
-                id: matchedAdmin.id,
-                email: matchedAdmin.email,
-                name: matchedAdmin.name,
-                role: 'Admin',
-                password,
-            };
+            const user = { id: matchedAdmin.id, email: matchedAdmin.email, name: matchedAdmin.name, role: 'Admin', password };
             const session = { token: buildFakeJwt(user), user };
             this.saveSession(session);
             return session;
@@ -349,15 +295,8 @@ export const api = {
         const matchedUser = users.find(
             (u) => u.email.toLowerCase() === cleanEmail && (u.password === password || !u.password)
         );
-
         if (matchedUser) {
-            const user = {
-                id: matchedUser.id,
-                email: matchedUser.email,
-                name: matchedUser.name,
-                role: 'User',
-                password,
-            };
+            const user = { id: matchedUser.id, email: matchedUser.email, name: matchedUser.name, role: 'User', password };
             const session = { token: buildFakeJwt(user), user };
             this.saveSession(session);
             return session;
@@ -374,14 +313,8 @@ export const api = {
             const response = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: 0,
-                    email: cleanEmail,
-                    name: cleanName,
-                    password,
-                }),
+                body: JSON.stringify({ id: 0, email: cleanEmail, name: cleanName, password }),
             });
-
             if (!response.ok && response.status === 400) {
                 const errText = await response.text();
                 if (errText.toLowerCase().includes('exist')) {
@@ -389,25 +322,17 @@ export const api = {
                 }
             }
         } catch (err) {
-            if (err instanceof Error && err.message.includes('существует')) {
-                throw err;
-            }
+            if (err instanceof Error && err.message.includes('существует')) throw err;
         }
 
         const users = getStoredUsers();
         const admins = getStoredAdmins();
-
         if (
             !users.some((u) => u.email.toLowerCase() === cleanEmail) &&
             !admins.some((a) => a.email.toLowerCase() === cleanEmail)
         ) {
             const nextId = users.reduce((max, u) => Math.max(max, u.id), 0) + 1;
-            users.push({
-                id: nextId,
-                email: cleanEmail,
-                name: cleanName,
-                password,
-            });
+            users.push({ id: nextId, email: cleanEmail, name: cleanName, password });
             saveStoredUsers(users);
         }
 
@@ -418,13 +343,9 @@ export const api = {
         try {
             const response = await fetch('/api/auth/edit', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders(),
-                },
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
                 body: JSON.stringify(updated),
             });
-
             if (response.ok) {
                 this.syncLocalUserUpdate(updated);
                 return updated;
@@ -432,7 +353,6 @@ export const api = {
         } catch {
             void 0;
         }
-
         this.syncLocalUserUpdate(updated);
         return updated;
     },
@@ -467,27 +387,17 @@ export const api = {
     async deleteAccount(id) {
         const session = this.getSession();
         try {
-            await fetch(`/api/auth/delete/${id}`, {
-                method: 'DELETE',
-                headers: authHeaders(),
-            });
+            await fetch(`/api/auth/delete/${id}`, { method: 'DELETE', headers: authHeaders() });
         } catch {
             void 0;
         }
-
         saveStoredUsers(getStoredUsers().filter((u) => u.id !== id));
-
-        if (session?.user.id === id) {
-            this.saveSession(null);
-        }
+        if (session?.user.id === id) this.saveSession(null);
     },
 
     async checkRoleById(id) {
         try {
-            const response = await fetch(`/api/admin/users/${id}/role`, {
-                method: 'GET',
-                headers: authHeaders(),
-            });
+            const response = await fetch(`/api/admin/users/${id}/role`, { method: 'GET', headers: authHeaders() });
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
                 const role = String(data?.role ?? data?.Role ?? '').toLowerCase();
@@ -503,15 +413,11 @@ export const api = {
 
         const admins = getStoredAdmins();
         const foundAdmin = admins.find((a) => a.id === id);
-        if (foundAdmin) {
-            return `Пользователь с ID ${id} (${foundAdmin.name}) является администратором`;
-        }
+        if (foundAdmin) return `Пользователь с ID ${id} (${foundAdmin.name}) является администратором`;
 
         const users = getStoredUsers();
         const foundUser = users.find((u) => u.id === id);
-        if (foundUser) {
-            return `Пользователь с ID ${id} (${foundUser.name}) не является администратором (Роль: Пользователь)`;
-        }
+        if (foundUser) return `Пользователь с ID ${id} (${foundUser.name}) не является администратором (Роль: Пользователь)`;
 
         throw new Error(`Пользователь с ID ${id} не найден в базе данных.`);
     },
@@ -519,9 +425,7 @@ export const api = {
     async getAllUsers() {
         const localUsers = getStoredUsers();
         try {
-            const response = await fetch('/api/admin/users', {
-                headers: authHeaders(),
-            });
+            const response = await fetch('/api/admin/users', { headers: authHeaders() });
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
                 if (Array.isArray(data) && data.length > 0) {
@@ -539,9 +443,7 @@ export const api = {
     async getAllAdmins() {
         const localAdmins = getStoredAdmins();
         try {
-            const response = await fetch('/api/admin/admins', {
-                headers: authHeaders(),
-            });
+            const response = await fetch('/api/admin/admins', { headers: authHeaders() });
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
                 if (Array.isArray(data) && data.length > 0) {
@@ -562,14 +464,10 @@ export const api = {
         if (outcome) params.set('outcome', outcome);
         params.set('page', String(page));
         try {
-            const response = await fetch(`/api/presets?${params.toString()}`, {
-                headers: authHeaders(),
-            });
+            const response = await fetch(`/api/presets?${params.toString()}`, { headers: authHeaders() });
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
-                if (Array.isArray(data)) {
-                    return data.map(normalizePresetListItem);
-                }
+                if (Array.isArray(data)) return data.map(normalizePresetListItem);
             }
         } catch {
             void 0;
@@ -579,14 +477,10 @@ export const api = {
 
     async getMyPresets(page = 1) {
         try {
-            const response = await fetch(`/api/presets/mine?page=${page}`, {
-                headers: authHeaders(),
-            });
+            const response = await fetch(`/api/presets/mine?page=${page}`, { headers: authHeaders() });
             if (response.ok && isJsonResponse(response)) {
                 const data = await response.json();
-                if (Array.isArray(data)) {
-                    return data.map(normalizePresetListItem);
-                }
+                if (Array.isArray(data)) return data.map(normalizePresetListItem);
             }
         } catch {
             void 0;
@@ -596,9 +490,7 @@ export const api = {
 
     async getPresetById(id) {
         try {
-            const response = await fetch(`/api/presets/${id}`, {
-                headers: authHeaders(),
-            });
+            const response = await fetch(`/api/presets/${id}`, { headers: authHeaders() });
             if (response.ok && isJsonResponse(response)) {
                 const detail = normalizePresetDetail(await response.json());
                 return detail.bodies.length === 3 ? detail : null;
@@ -613,10 +505,7 @@ export const api = {
         try {
             const response = await fetch('/api/presets', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders(),
-                },
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
                 body: JSON.stringify({
                     title: presetData.title,
                     description: presetData.description || null,
@@ -634,9 +523,7 @@ export const api = {
                     previewImageBase64: presetData.previewImageBase64 || null,
                 }),
             });
-            if (response.ok && isJsonResponse(response)) {
-                return normalizePresetDetail(await response.json());
-            }
+            if (response.ok && isJsonResponse(response)) return normalizePresetDetail(await response.json());
         } catch {
             void 0;
         }
@@ -647,10 +534,7 @@ export const api = {
         try {
             const response = await fetch(`/api/presets/${id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders(),
-                },
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
                 body: JSON.stringify({
                     title: presetData.title,
                     description: presetData.description || null,
@@ -670,9 +554,7 @@ export const api = {
                     previewImageBase64: presetData.previewImageBase64 || null,
                 }),
             });
-            if (response.ok && isJsonResponse(response)) {
-                return normalizePresetDetail(await response.json());
-            }
+            if (response.ok && isJsonResponse(response)) return normalizePresetDetail(await response.json());
         } catch {
             void 0;
         }
