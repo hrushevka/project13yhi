@@ -3,6 +3,7 @@ import {
     FALLBACK_PRESET,
     isStateFinite,
     stepSimulation,
+    PLANET_COLLISION_OPTIONS,
     toSimBodies,
     recenterToCM,
     totalEnergy,
@@ -16,7 +17,7 @@ import { BodyMenu } from './BodyMenu';
 import { ControlPanel } from './ControlPanel';
 import { StatsPanel } from './StatsPanel';
 import { SimulationReportModal, SimulationSetupMenu } from './SimulationMenu';
-import { bodyRadius, cloneBodies, formatSimTime } from './utils';
+import { cloneBodies, formatSimTime } from './utils';
 
 const MAX_BODIES = 3;
 const MIN_BODIES = 1;
@@ -122,16 +123,11 @@ function computeSnapshotMetrics(state, t, g, softening) {
     };
 }
 
-const V_FRAG = 1.0;
-const Q_MIN = 0.2;
-const N_DEBRIS = 6;
-const DEBRIS_SPREAD = 0.8;
-const DEBRIS_MASS_FRACTION = 0.4;
 function attachContactRadius(body, idx) {
     const mass = body.m || 1;
     return {
         ...body,
-        r: Math.max(0.01, 0.05 * Math.cbrt(mass)),
+        r: Math.max(0.01, 0.09 * Math.cbrt(mass)),
         id: body.id || `body-${idx}-${Math.random().toString(36).slice(2, 8)}`,
     };
 }
@@ -165,7 +161,7 @@ function readCanvasPalette() {
     };
 }
 
-export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePresetChange }) {
+export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePresetChange, onOpenCatalog }) {
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
     const paletteRef = useRef(null);
@@ -202,7 +198,6 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     const [outcome, setOutcome] = useState('unknown');
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState(null);
-    const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
     const [showStats, setShowStats] = useState(() => {
         try { const saved = localStorage.getItem('cosmos.analytics'); return saved === null ? window.innerWidth >= 900 : saved === 'true'; }
         catch { return window.innerWidth >= 900; }
@@ -240,6 +235,34 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
 
     const dragRef = useRef({ kind: 'none' });
     const selectedRef = useRef(null);
+    const forecastRevision = useRef(0);
+    const autoCollisionsRef = useRef(true);
+    const [configuration, setConfiguration] = useState(() => ({
+        revision: 0,
+        isPreset: true,
+        bodies: toSimBodies(FALLBACK_PRESET.bodies).map(attachContactRadius),
+        gravity: FALLBACK_PRESET.g, softening: FALLBACK_PRESET.softening ?? 0, collisions: true,
+    }));
+    const refreshForecast = useCallback(() => {
+        const isPreset = Boolean(presetRef.current);
+        if (isPreset || autoCollisionsRef.current) {
+            collisionsRef.current = !isPreset;
+            setCollisions(!isPreset);
+        }
+        autoCollisionsRef.current = isPreset;
+        setConfiguration({
+            revision: ++forecastRevision.current,
+            isPreset,
+            bodies: cloneBodies(stateRef.current), gravity: gravityRef.current,
+            softening: softeningRef.current, collisions: true,
+        });
+    }, []);
+    const applyStabilityResult = useCallback((kind, revision) => {
+        if (revision !== forecastRevision.current || !autoCollisionsRef.current) return;
+        const enabled = kind === 'stable';
+        collisionsRef.current = enabled;
+        setCollisions(enabled);
+    }, []);
 
     useEffect(() => {
         onActivePresetChangeRef.current?.(PRESETS[0]);
@@ -286,18 +309,19 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         setBodyCount(stateRef.current.length);
         setOutcome('unknown');
         refreshStatsView();
-    }, [syncTimeText, resetMeta, refreshStatsView, invalidatePreset]);
+        refreshForecast();
+    }, [syncTimeText, resetMeta, refreshStatsView, invalidatePreset, refreshForecast]);
 
     const setNewBodies = useCallback((preset) => {
         let periodicOrbit = null;
         try { if (preset.period) periodicOrbit = preparePeriodicOrbit(preset); }
         catch (error) { setSimulationError(error.message); return; }
         periodicOrbitRef.current = periodicOrbit;
-        loopModeRef.current = !!periodicOrbit;
+        loopModeRef.current = false;
         const { bodies, g, softening: softeningValue, dt: newDt, lockCM: lock } = preset;
         presetRef.current = preset;
         setupPresetRef.current = preset;
-        exactModeRef.current = !!preset.solution;
+        exactModeRef.current = false;
         collisionsRef.current = false;
         accumulatorRef.current = 0;
         onActivePresetChangeRef.current?.(preset);
@@ -328,7 +352,8 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         setOutcome('unknown');
         setRunning(false);
         refreshStatsView();
-    }, [syncTimeText, resetMeta, refreshStatsView]);
+        refreshForecast();
+    }, [syncTimeText, resetMeta, refreshStatsView, refreshForecast]);
 
     useEffect(() => {
         if (!presetCommand?.preset || presetCommand.nonce === handledPresetNonceRef.current) return;
@@ -461,8 +486,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                 result = { events: [] };
             } else result = stepSimulation(state, gravityRef.current, softeningRef.current, H, {
                 collisions: collisionsRef.current,
-                vFrag: V_FRAG, qMin: Q_MIN, nDebris: N_DEBRIS,
-                spread: DEBRIS_SPREAD, debrisMassFraction: DEBRIS_MASS_FRACTION,
+                ...PLANET_COLLISION_OPTIONS,
             });
             if (!isStateFinite(state)) throw new Error('Simulation became non-finite; reduce the time step.');
         } catch (error) {
@@ -771,12 +795,40 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                 ctx.globalAlpha = 1.0;
             }
 
+            // Hide measurements when playback or screen motion makes them unreadable.
+            if (speedRef.current <= 2 && stateRef.current.every(b => Math.hypot(b.vx, b.vy) * k * speedRef.current <= 500)) {
+                ctx.save();
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                stateRef.current.forEach((a, i) => {
+                    stateRef.current.slice(i + 1).forEach((b, offset) => {
+                        const x = cx + (a.x + b.x) * k / 2;
+                        const y = cy - (a.y + b.y) * k / 2 - 16;
+                        const label = `${i + 1}–${i + offset + 2}: ${Math.hypot(a.x - b.x, a.y - b.y).toFixed(2)} у.е.`;
+                        const w = ctx.measureText(label).width + 12;
+                        ctx.fillStyle = palette.handleStroke;
+                        ctx.globalAlpha = .88;
+                        ctx.fillRect(x - w / 2, y - 10, w, 20);
+                        ctx.globalAlpha = 1;
+                        ctx.fillStyle = palette.textPrimary;
+                        ctx.fillText(label, x, y);
+                    });
+                });
+                ctx.restore();
+            }
+
             stateRef.current.forEach((b, i) => {
                 const sx = cx + b.x * k;
                 const sy = cy - b.y * k;
-                const r = Math.max(2, bodyRadius(b.m) * lineScale * (b.isDebris ? 0.5 : 1));
+                const r = Math.max(2, (b.r ?? 0.05 * Math.cbrt(b.m)) * k);
 
-                ctx.fillStyle = b.isDebris ? palette.bodyColors[1] : palette.bodyColors[i % palette.bodyColors.length];
+                const color = b.isDebris ? palette.bodyColors[1] : palette.bodyColors[i % palette.bodyColors.length];
+                const shading = ctx.createRadialGradient(sx - r * .35, sy - r * .4, 0, sx, sy, r);
+                shading.addColorStop(0, '#ffffff');
+                shading.addColorStop(.25, color);
+                shading.addColorStop(1, '#172536');
+                ctx.fillStyle = shading;
                 ctx.globalAlpha = b.isDebris ? 0.85 : 1.0;
                 ctx.beginPath();
                 ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -912,11 +964,10 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     const hitVelocityHandle = (mousePos, hitRadius = 14) => {
         const bodies = stateRef.current;
         const k = cameraRef.current.zoom;
-        const lineScale = k / BASE_ZOOM;
         for (let i = bodies.length - 1; i >= 0; i--) {
             if (bodies[i].isDebris) continue;
             const p = toScreen(bodies[i]);
-            const r = Math.max(2, bodyRadius(bodies[i].m) * lineScale);
+            const r = Math.max(2, (bodies[i].r ?? 0.05 * Math.cbrt(bodies[i].m)) * k);
             const handle = getVelocityHandleScreenPos(bodies[i], p.x, p.y, k, r);
             if (Math.hypot(mousePos.x - handle.x, mousePos.y - handle.y) <= hitRadius) {
                 return i;
@@ -927,11 +978,10 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
 
     const hitBody = (mousePos) => {
         const bodies = stateRef.current;
-        const lineScale = cameraRef.current.zoom / BASE_ZOOM;
         for (let i = bodies.length - 1; i >= 0; i--) {
             if (bodies[i].isDebris) continue;
             const p = toScreen(bodies[i]);
-            const r = Math.max(2, bodyRadius(bodies[i].m) * lineScale);
+            const r = Math.max(2, (bodies[i].r ?? 0.05 * Math.cbrt(bodies[i].m)) * cameraRef.current.zoom);
             const clickRadius = Math.max(r + 12, 22);
             if (Math.hypot(mousePos.x - p.x, mousePos.y - p.y) <= clickRadius) {
                 return i;
@@ -1142,8 +1192,8 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                 <button type="button" className="analytics-reopen" aria-label="Показать аналитику" onClick={() => toggleStats(true)}>◷ Аналитика</button>}
 
             <ControlPanel
-                isPanelCollapsed={isPanelCollapsed}
-                setIsPanelCollapsed={setIsPanelCollapsed}
+                onOpenCatalog={onOpenCatalog}
+                configuration={configuration}
                 running={running}
                 setRunning={toggleRunning}
                 bodyCount={bodyCount}
@@ -1151,12 +1201,13 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                 speed={speed}
                 setSpeed={(value) => { speedRef.current = value; setSpeed(value); }}
                 gravity={gravity}
-                setGravity={(value) => { if (value !== gravityRef.current) invalidatePreset(); gravityRef.current = value; setGravity(value); }}
+                setGravity={(value) => { if (value !== gravityRef.current) invalidatePreset(); gravityRef.current = value; setGravity(value); refreshForecast(); }}
                 collisions={collisions}
-                onCollisionsChange={(value) => {
-                    collisionsRef.current = value;
-                    setCollisions(value);
-                    if (value) { exactModeRef.current = false; loopModeRef.current = false; }
+                onStabilityResult={applyStabilityResult}
+                onCollisionsChange={(enabled) => {
+                    if (autoCollisionsRef.current) return;
+                    collisionsRef.current = enabled;
+                    setCollisions(enabled);
                 }}
                 onReset={() => {
                     if (activeSimSessionRef.current) {
@@ -1182,6 +1233,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                     setBodyCount(stateRef.current.length);
                     syncTimeText();
                     refreshStatsView();
+                    refreshForecast();
                 }}
                 onClear={() => {
                     activeSimSessionRef.current = null;

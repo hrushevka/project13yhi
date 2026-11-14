@@ -181,6 +181,9 @@ export function findEarliestContact(bodies, dt) {
     return best;
 }
 
+// Planet mode merges contacts without producing fragments that can collide again.
+export const PLANET_COLLISION_OPTIONS = Object.freeze({ vFrag: Infinity });
+
 export function classifyContact(A, B, opts = {}) {
     const { vFrag = Infinity, qMin = 0 } = opts;
 

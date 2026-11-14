@@ -1,3 +1,4 @@
+import { FloatingPanel } from './FloatingPanel';
 import { getSummary } from '../utils/stats';
 
 function fmt(v, digits = 3) {
@@ -47,59 +48,32 @@ function DistanceChart({ history, height = 80 }) {
 
 export function StatsPanel({ stats, final = false, onClose }) {
     const s = getSummary(stats);
-    return (
-        <div className="stats-panel">
-            <div className="stats-title">
-                <span>{final ? 'Итоговый отчёт' : 'Аналитика'}</span>
-                {onClose && <button type="button" className="stats-close" aria-label="Скрыть аналитику" onClick={onClose}>×</button>}
+    const last = stats.distanceHistory.at(-1);
+    const drift = Math.abs(s.initialEnergy) > 1e-9 ? s.energyDrift / Math.abs(s.initialEnergy) * 100 : null;
+    const impacts = s.merges + s.fragments;
+    const content = (
+        <div className="telemetry">
+            <div className="telemetry-banner"><span className="live-dot" /> ТЕЛЕМЕТРИЯ <span>{fmtTime(s.elapsed)}</span></div>
+            <div className="metric-grid">
+                <div className="metric"><small>Тел в системе</small><strong>{s.bodyCount}<em> / {s.initialBodyCount}</em></strong><span>планеты</span></div>
+                <div className="metric"><small>События</small><strong>{impacts}<em> ударов</em></strong><span>слияния планет</span></div>
             </div>
-
-            <div className="stats-section">
-                <div className="stats-section-title">Время</div>
-                <div className="stats-row"><span>Прошло</span><b>{fmtTime(s.elapsed)}</b></div>
-                <div className="stats-row"><span>Первое столкновение</span><b>{fmtTime(s.firstCollisionTime)}</b></div>
-                <div className="stats-row"><span>Последнее</span><b>{fmtTime(s.lastCollisionTime)}</b></div>
-            </div>
-
-            <div className="stats-section">
-                <div className="stats-section-title">Тела</div>
-                <div className="stats-row"><span>Сейчас</span><b>{s.bodyCount}</b></div>
-                <div className="stats-row"><span>Было</span><b>{s.initialBodyCount}</b></div>
-                <div className="stats-row"><span>Макс. в кадре</span><b>{s.maxBodyCount}</b></div>
-                <div className="stats-row"><span>Мусора</span><b>{s.debrisCount}</b></div>
-            </div>
-
-            <div className="stats-section">
-                <div className="stats-section-title">Столкновения</div>
-                <div className="stats-row"><span>Слияний</span><b>{s.merges}</b></div>
-                <div className="stats-row"><span>Распадов</span><b>{s.fragments}</b></div>
-            </div>
-
-            <div className="stats-section">
-                <div className="stats-section-title">Расстояния</div>
-                <div className="stats-row"><span>Среднее</span><b>{fmt(s.avgDistance)}</b></div>
-                <div className="stats-row"><span>Мин.</span><b>{fmt(s.minDistance)}</b></div>
-                <div className="stats-row"><span>Макс.</span><b>{fmt(s.maxDistance)}</b></div>
-                <DistanceChart history={stats.distanceHistory} />
-            </div>
-
-            <div className="stats-section">
-                <div className="stats-section-title">Скорости</div>
-                <div className="stats-row"><span>Средняя</span><b>{fmt(s.avgSpeed)}</b></div>
-                <div className="stats-row"><span>Макс.</span><b>{fmt(s.maxSpeed)}</b></div>
-            </div>
-
-            <div className="stats-section">
-                <div className="stats-section-title">Энергия</div>
-                <div className="stats-row"><span>Начальная</span><b>{fmt(s.initialEnergy, 4)}</b></div>
-                <div className="stats-row"><span>Текущая</span><b>{fmt(s.energy, 4)}</b></div>
-                <div className="stats-row">
-                    <span>Дрейф</span>
-                    <b className={Math.abs(s.energyDrift) > 0.1 ? 'drift-warn' : 'drift-ok'}>
-                        {fmt(s.energyDrift, 4)}
-                    </b>
-                </div>
-            </div>
+            <section className="telemetry-section">
+                <div className="telemetry-heading"><h3>Пульс орбиты</h3><span>расстояние · усл. ед.</span></div>
+                <DistanceChart history={stats.distanceHistory} height={110} />
+                {last && <div className="metric-strip"><span>{fmtTime(stats.distanceHistory[0].t)}</span><span>{fmtTime(last.t)}</span></div>}
+                <div className="chart-legend"><span>━ среднее между телами</span><span>▰ диапазон min–max</span></div>
+                <div className="metric-strip"><span>Сейчас <b>{last ? fmt(last.avg) : '—'}</b></span><span>Сближение <b>{last ? fmt(s.minDistance) : '—'}</b></span></div>
+            </section>
+            <section className="energy-card">
+                <div className="telemetry-heading"><h3>Баланс энергии</h3><span className={impacts ? '' : Math.abs(drift ?? 0) > 1 ? 'drift-warn' : 'drift-ok'}>{drift === null ? 'ΔE ' + fmt(s.energyDrift, 4) : fmt(drift, 3) + '%'}</span></div>
+                <meter min="0" max="1" value={Math.min(1, Math.abs(drift ?? 0) / 100)} aria-label="Относительное изменение энергии" />
+                <p>{impacts ? 'При слияниях механическая энергия меняется — это не только ошибка расчёта.' : 'Без столкновений энергия должна сохраняться. Рост отклонения показывает погрешность расчёта.'}</p>
+                <div className="metric-strip"><span>Начало <b>{fmt(s.initialEnergy, 4)}</b></span><span>Сейчас <b>{fmt(s.energy, 4)}</b></span></div>
+            </section>
+            <div className="metric-strip speed-strip"><span>Средняя скорость <b>{stats.avgSpeedSamples ? fmt(s.avgSpeed) : '—'}</b></span><span>Пиковая <b>{stats.avgSpeedSamples ? fmt(s.maxSpeed) : '—'}</b></span></div>
+            <div className="insight"><b>{impacts ? 'Зафиксирован контакт' : s.elapsed ? 'Наблюдение за системой' : 'Готовы к исследованию'}</b><p>{impacts ? 'Последний контакт: ' + fmtTime(s.lastCollisionTime) + '.' : 'Запустите движение. График покажет сближения, а энергия — точность расчёта. Все величины в условных единицах.'}</p></div>
         </div>
     );
+    return final ? content : <FloatingPanel id="analytics" title="Аналитика полёта" className="analytics-panel" onClose={onClose}>{content}</FloatingPanel>;
 }
