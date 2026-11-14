@@ -1,3 +1,5 @@
+export { FALLBACK_PRESET } from './presets.js';
+
 let scratch = {
     bx: new Float64Array(8),
     by: new Float64Array(8),
@@ -35,7 +37,9 @@ function computeAccelerations(n, px, py, pm, G, eps2, ax, ay) {
             const dx = px[j] - xi;
             const dy = py[j] - yi;
             // Защита от деления на 0 и гравитационного "отскока"
-            const r2 = dx * dx + dy * dy + Math.max(eps2, 1e-6);
+            const r2 = dx * dx + dy * dy + eps2;
+            if (G === 0) continue;
+            if (r2 === 0) throw new RangeError('Coincident point masses require softening or collision radii.');
             const inv = 1 / (r2 * Math.sqrt(r2));
             const fi = G * pm[j] * inv;
             const fj = G * mi * inv;
@@ -177,7 +181,7 @@ export function findEarliestContact(bodies, dt) {
     return best;
 }
 
-export function classifyContact(A, B, opts) {
+export function classifyContact(A, B, opts = {}) {
     const { vFrag = Infinity, qMin = 0 } = opts;
 
     const dx = B.x - A.x, dy = B.y - A.y;
@@ -185,7 +189,7 @@ export function classifyContact(A, B, opts) {
     const nx = dx / d, ny = dy / d;
 
     const rvx = B.vx - A.vx, rvy = B.vy - A.vy;
-    const vn = Math.abs(rvx * nx + rvy * ny);
+    const vn = d <= 1e-12 ? Math.hypot(rvx, rvy) : Math.max(0, -(rvx * nx + rvy * ny));
 
     const q = Math.min(A.m, B.m) / Math.max(A.m, B.m);
 
@@ -202,122 +206,149 @@ export function mergePair(bodies, i, j) {
     A.vx = (A.m * A.vx + B.m * B.vx) / M;
     A.vy = (A.m * A.vy + B.m * B.vy) / M;
     A.m = M;
-    A.r = Math.sqrt((A.r || 0) ** 2 + (B.r || 0) ** 2);
+    A.r = Math.cbrt((A.r || 0) ** 3 + (B.r || 0) ** 3);
 
     bodies.splice(j, 1);
     return { id: A.id, m: M };
 }
 
-export function fragmentPair(bodies, i, j, opts) {
-    const A = bodies[i], B = bodies[j];
-    const {
-        nDebris = 8,
-        spread = 0.5,
-        debrisMassFraction = 0.5,
-        minDebrisMass = 1e-4,
-    } = opts;
+let fragmentId = 0;
 
+export function fragmentPair(bodies, i, j, opts = {}) {
+    const A = bodies[i], B = bodies[j];
     const M = A.m + B.m;
     const cx = (A.m * A.x + B.m * B.x) / M;
     const cy = (A.m * A.y + B.m * B.y) / M;
     const cvx = (A.m * A.vx + B.m * B.vx) / M;
     const cvy = (A.m * A.vy + B.m * B.vy) / M;
-
+    const fraction = Math.max(0, Math.min(1, opts.debrisMassFraction ?? 0.5));
+    const minMass = Math.max(1e-12, opts.minDebrisMass ?? 1e-4);
+    const count = Math.min(64, Math.max(0, Math.floor(opts.nDebris ?? 8)), Math.floor(M * fraction / minMass));
+    // Too little mass to form a symmetric cloud: retain it in one remnant.
+    const debrisMass = count >= 2 ? M * fraction : 0;
+    const radius = Math.cbrt((A.r || 0) ** 3 + (B.r || 0) ** 3);
     const debris = [];
-    const mTotalDebris = M * debrisMassFraction;
-    const mEach = Math.max(minDebrisMass, mTotalDebris / nDebris);
-
-    for (let k = 0; k < nDebris; k++) {
-        const ang = (2 * Math.PI * k) / nDebris + Math.random() * 0.4;
-        const sp = spread * (0.5 + Math.random());
+    if (debrisMass > 0) {
+        const m = debrisMass / count;
+        const r = radius * Math.cbrt(m / M);
+        const remnantRadius = radius * Math.cbrt(1 - fraction);
+        const ring = Math.max(1e-6, 1.01 * (remnantRadius + r), 1.01 * r / Math.sin(Math.PI / count));
+        // Ejection kinetic energy cannot exceed the impact's relative kinetic energy.
+        const relativeSpeed = Math.hypot(B.vx - A.vx, B.vy - A.vy);
+        const speed = Math.min(Math.max(0, opts.spread ?? 0.5), relativeSpeed * Math.sqrt(A.m * B.m / (M * debrisMass)));
+        for (let k = 0; k < count; k++) {
+            const angle = 2 * Math.PI * k / count;
+            debris.push({
+                id: 'debris-' + (++fragmentId), m, r, isDebris: true,
+                x: cx + ring * Math.cos(angle), y: cy + ring * Math.sin(angle),
+                vx: cvx + speed * Math.cos(angle), vy: cvy + speed * Math.sin(angle),
+            });
+        }
+    }
+    if (M > debrisMass) {
         debris.push({
-            id: `debris-${Date.now()}-${k}`,
-            x: cx + Math.cos(ang) * (A.r || 0) * 0.5,
-            y: cy + Math.sin(ang) * (A.r || 0) * 0.5,
-            vx: cvx + Math.cos(ang) * sp,
-            vy: cvy + Math.sin(ang) * sp,
-            m: mEach,
-            r: Math.cbrt(mEach) * 0.1,
-            isDebris: true,
+            id: A.id, m: M - debrisMass, r: radius * Math.cbrt(1 - debrisMass / M),
+            x: cx, y: cy, vx: cvx, vy: cvy,
         });
     }
-
-    const hi = Math.max(i, j), lo = Math.min(i, j);
-    bodies.splice(hi, 1);
-    bodies.splice(lo, 1);
-
-    const gas = {
-        x: cx, y: cy,
-        vx: cvx, vy: cvy,
-        mass: M * (1 - debrisMassFraction),
-        life: 1.5,
-        radius: (A.r || 0) + (B.r || 0),
-    };
-
-    return { debris, gas };
+    bodies.splice(Math.max(i, j), 1);
+    bodies.splice(Math.min(i, j), 1);
+    return { debris, gas: { x: cx, y: cy, vx: cvx, vy: cvy, mass: 0, life: 1.5, radius } };
 }
 
+// Advance the entire system through the drift interval, resolving contacts in time order.
+// Fragment insertion is owned here; onEvent is a notification only.
 export function detectAndResolve(bodies, dt, opts = {}) {
-    const {
-        maxEvents = 8,
-        onEvent = () => {},
-    } = opts;
-
+    if (!Number.isFinite(dt) || dt < 0) throw new RangeError('Collision interval must be finite and nonnegative.');
     const events = [];
-    let guard = 0;
-
-    while (guard++ < maxEvents) {
-        const hit = findEarliestContact(bodies, dt);
+    let remaining = dt;
+    const maxEvents = Math.max(0, Math.floor(opts.maxEvents ?? 64));
+    const drift = (t) => {
+        for (const b of bodies) { b.x += b.vx * t; b.y += b.vy * t; }
+    };
+    while (events.length < maxEvents) {
+        const hit = findEarliestContact(bodies, remaining);
         if (!hit) break;
-
-        const { i, j, t } = hit;
-
-        if (t > 1e-12) {
-            bodies[i].x += bodies[i].vx * t;
-            bodies[i].y += bodies[i].vy * t;
-            bodies[j].x += bodies[j].vx * t;
-            bodies[j].y += bodies[j].vy * t;
-        }
-
-        const A = bodies[i], B = bodies[j];
+        drift(hit.t);
+        remaining = Math.max(0, remaining - hit.t);
+        const A = bodies[hit.i], B = bodies[hit.j];
         const cls = classifyContact(A, B, opts);
-
+        let ev;
         if (cls.kind === 'merge') {
-            const res = mergePair(bodies, i, j);
-            const ev = { kind: 'merge', ...cls, ...res, x: A.x, y: A.y };
-            events.push(ev);
-            onEvent(ev);
-            // ВАЖНО: ВЫХОДИМ, так как массив изменился
-            break;
+            const res = mergePair(bodies, hit.i, hit.j);
+            ev = { ...cls, ...res, x: A.x, y: A.y };
+        } else {
+            const res = fragmentPair(bodies, hit.i, hit.j, opts);
+            bodies.push(...res.debris);
+            ev = { ...cls, ...res };
         }
-
-        const res = fragmentPair(bodies, i, j, opts);
-        const ev = { kind: 'fragment', ...cls, ...res };
+        ev.time = dt - remaining;
         events.push(ev);
-        onEvent(ev);
-        break;
+        opts.onEvent?.(ev);
     }
-
+    // Never silently drift through unresolved contacts after the event budget.
+    if (events.length === maxEvents && findEarliestContact(bodies, remaining)) {
+        throw new RangeError('Collision event limit exceeded; reduce the time step.');
+    }
+    drift(remaining);
     return { events };
 }
 
-export const FALLBACK_PRESET = {
-    id: 0,
-    title: 'Восьмёрка',
-    description: 'Демо-конфигурация Шенсине–Монтгомери',
-    bodies: [
-        { mass: 1, positionX: -0.97000436, positionY: 0.24308753, velocityX: 0.46620368, velocityY: 0.43236573 },
-        { mass: 1, positionX: 0.97000436, positionY: -0.24308753, velocityX: 0.46620368, velocityY: 0.43236573 },
-        { mass: 1, positionX: 0, positionY: 0, velocityX: -0.93240737, velocityY: -0.86473146 },
-    ],
-    g: 1,
-    softening: 0,
-    dt: 0.0001,
-    outcome: 'figure8',
-    authorName: 'Cosmos lab',
-    authorId: 0,
-    canEdit: false,
-};
+function validateStep(state, G, softening, dt) {
+    if (!Number.isFinite(G) || G < 0 || !Number.isFinite(softening) || softening < 0 || !Number.isFinite(dt)) {
+        throw new RangeError('Invalid gravity, softening, or time step.');
+    }
+    if (!isStateFinite(state)) throw new RangeError('Bodies must have finite coordinates and positive masses.');
+}
+
+// Kick-drift-kick Verlet with continuous linear collision detection during drift.
+export function stepSimulation(state, G, softening, dt, opts = {}) {
+    validateStep(state, G, softening, dt);
+    if (dt < 0 || dt > 1) throw new RangeError('Simulation time step must be between zero and one.');
+    if (dt === 0 || state.length === 0) return { events: [] };
+    if (opts.collisions === false) {
+        // Fourth-order symplectic integration, subdivided near close encounters.
+        let remaining = dt;
+        let count = 0;
+        while (remaining > 1e-14) {
+            let h = Math.min(remaining, 0.002);
+            for (let i = 0; i < state.length; i++) {
+                for (let j = i + 1; j < state.length; j++) {
+                    const a = state[i], b = state[j];
+                    const r = Math.hypot(a.x - b.x, a.y - b.y, softening);
+                    const v = Math.hypot(a.vx - b.vx, a.vy - b.vy);
+                    if (G > 0) {
+                        h = Math.min(h, 0.02 * Math.sqrt(r ** 3 / (G * (a.m + b.m))));
+                        if (v > 0) h = Math.min(h, 0.02 * r / v);
+                    }
+                }
+            }
+            if (!(h > 1e-14) || ++count > 10000) throw new RangeError('Too close to a point-mass collision. Enable collisions or increase softening.');
+            stepBodiesInPlace(state, G, softening, h);
+            remaining = Math.max(0, remaining - h);
+        }
+        return { events: [] };
+    }
+    const steps = Math.ceil(dt / 0.001);
+    if (steps > 1000) throw new RangeError('Time step is too large.');
+    const h = dt / steps;
+    const events = [];
+    const kick = () => {
+        const n = state.length;
+        const { bx, by, bax, bay } = ensureScratch(n);
+        const masses = state.map((b, i) => { bx[i] = b.x; by[i] = b.y; return b.m; });
+        computeAccelerations(n, bx, by, masses, G, softening * softening, bax, bay);
+        state.forEach((b, i) => { b.vx += bax[i] * h / 2; b.vy += bay[i] * h / 2; });
+    };
+    for (let k = 0; k < steps; k++) {
+        // Resolve initial overlaps before evaluating a possibly singular force.
+        events.push(...detectAndResolve(state, 0, opts).events.map((ev) => ({ ...ev, time: k * h })));
+        kick();
+        events.push(...detectAndResolve(state, h, opts).events.map((ev) => ({ ...ev, time: k * h + ev.time })));
+        kick();
+    }
+    return { events };
+}
 
 export function toSimBodies(bodies) {
     return bodies.map((b) => ({
@@ -331,7 +362,7 @@ export function toSimBodies(bodies) {
 
 export function isStateFinite(state) {
     return state.every(
-        (b) => Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy)
+        (b) => Number.isFinite(b.m) && b.m > 0 && (b.r === undefined || (Number.isFinite(b.r) && b.r >= 0)) && Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy)
     );
 }
 
@@ -346,7 +377,7 @@ export function totalEnergy(state, G, softening) {
             const dx = state[j].x - b.x;
             const dy = state[j].y - b.y;
             const r = Math.sqrt(dx * dx + dy * dy + eps2);
-            potential -= (G * b.m * state[j].m) / r;
+            if (G !== 0) potential -= (G * b.m * state[j].m) / r;
         }
     }
     return kinetic + potential;

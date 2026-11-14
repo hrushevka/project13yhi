@@ -45,12 +45,13 @@ function DistanceChart({ history, height = 80 }) {
     );
 }
 
-export function StatsPanel({ stats, final = false }) {
+export function StatsPanel({ stats, final = false, onClose }) {
     const s = getSummary(stats);
     return (
         <div className="stats-panel">
             <div className="stats-title">
-                {final ? 'Итоговый отчёт' : 'Аналитика'}
+                <span>{final ? 'Итоговый отчёт' : 'Аналитика'}</span>
+                {onClose && <button className="stats-close" aria-label="Скрыть аналитику" onClick={onClose}>×</button>}
             </div>
 
             <div className="stats-section">

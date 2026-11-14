@@ -1,9 +1,9 @@
-export const COLORS = ['#ff4d4d', '#4d6bfe', '#4dff88'];
+export const COLORS = ['#ff8276', '#73cfff', '#b7a1ff'];
 
 export const OUTCOME_LABELS = {
     collision: 'Столкновение',
     ejection: 'Выброс',
-    stable: 'Стабильная орбита',
+    stable: 'Движение без столкновений',
     unknown: 'Анализ...',
 };
 

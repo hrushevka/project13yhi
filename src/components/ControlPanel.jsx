@@ -1,135 +1,90 @@
+﻿import { useState } from 'react';
 import { OUTCOME_LABELS } from './utils';
 import { PRESETS } from '../utils/presets';
+import previews from '../utils/orbit-previews.json' with { type: 'json' };
+import { RangeNumber } from './RangeNumber';
 
-const MIN_SPEED = 1;
-const MAX_SPEED = 500;
-const MIN_G = 0.1;
-const MAX_G = 5;
-const G_STEP = 0.1;
-const MIN_SOFTENING = 0;
-const MAX_SOFTENING = 1;
-const SOFTENING_STEP = 0.01;
+function OrbitPreview({ name }) {
+    return <svg className="orbit-preview" viewBox="0 0 100 100" aria-hidden="true">
+        {(previews[name] ?? []).map((d, i) => <path key={i} d={d} fill="none" stroke={['#ff8276', '#73cfff', '#b7a1ff'][i]} strokeWidth="1.15" />)}
+    </svg>;
+}
 
 export function ControlPanel({
-    isPanelCollapsed,
-    setIsPanelCollapsed,
-    running,
-    setRunning,
-    bodyCount,
-    maxBodies,
-    outcome,
-    timeTextRef,
-    speed,
-    setSpeed,
-    dt,
-    setDt,
-    gravity,
-    setGravity,
-    softening,
-    setSoftening,
-    onReset,
-    onClear,
-    onStep,
-    onCenter,
-    onPresetSelect,
-    renderEnergy,
+    isPanelCollapsed, setIsPanelCollapsed, running, setRunning, bodyCount,
+    outcome, timeTextRef, speed, setSpeed, dt, setDt, gravity, setGravity,
+    softening, setSoftening, onReset, onClear, onStep, onCenter, onPresetSelect,
+    renderEnergy, activePreset, exactMode, onExactModeChange, collisions,
+    onCollisionsChange, showStats, setShowStats, onShowReport, loopMode, onLoopModeChange,
 }) {
-    const handleSpeedChange = (e) => {
-        let val = parseInt(e.target.value, 10);
-        if (isNaN(val)) val = 1;
-        if (val < MIN_SPEED) val = MIN_SPEED;
-        if (val > MAX_SPEED) val = MAX_SPEED;
-        setSpeed(val);
-    };
-
-    const handleDtChange = (e) => {
-        let val = parseFloat(e.target.value);
-        if (isNaN(val) || val <= 0) val = 0.0001;
-        setDt(val);
-    };
-
+    const [galleryOpen, setGalleryOpen] = useState(false);
+    const [group, setGroup] = useState('Все');
+    const groups = ['Все', 'Классические', 'Овалы Шина', 'Хореографии'];
     return (
         <div className={`sim-panel-wrapper ${isPanelCollapsed ? 'collapsed' : ''}`}>
-            <div className="sim-panel">
-                <div className="sim-panel-header" onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}>
-                    <div className="sim-panel-title">
-                        <span style={{ color: running ? '#4dff88' : '#888' }}>●</span>
-                        Панель управления
-                    </div>
-                    <div className="sim-panel-toggle" style={{ transform: isPanelCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                        ▼
-                    </div>
-                </div>
-
-                <div className="sim-row">
-                    <button className="btn-primary" onClick={() => {
-                        if (bodyCount >= 1) setRunning(!running);
-                    }} disabled={bodyCount < 1}>
+            <section className="sim-panel" aria-label="Управление симуляцией">
+                <div className="sim-row transport-row">
+                    <button className="btn-primary" onClick={() => setRunning(!running)} disabled={bodyCount < 1}>
                         {running ? 'Пауза' : 'Запуск'}
                     </button>
                     <button onClick={onReset}>Сброс</button>
-                    <button onClick={onClear}>Очистить</button>
                     <button onClick={onStep} disabled={running || bodyCount < 1}>Шаг</button>
                     <button onClick={onCenter}>Центр</button>
-
-                    <span className="sim-label" style={{ marginLeft: 'auto' }}>
-                        Исход: <b style={{ color: outcome === 'stable' ? '#4dff88' : outcome === 'collision' || outcome === 'ejection' ? '#ff4d4d' : '#fff' }}>
-                            {OUTCOME_LABELS[outcome]}
-                        </b>
-                    </span>
-                    <span className="sim-label">
-                        Время: <span className="sim-time" ref={timeTextRef}>0.00 с</span>
-                    </span>
+                    <span className="sim-label time-display">Время <span className="sim-time" ref={timeTextRef}>0.00 с</span></span>
+                    <button className="collapse-control" aria-expanded={!isPanelCollapsed} onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}>
+                        {isPanelCollapsed ? 'Настройки ▴' : 'Свернуть ▾'}
+                    </button>
                 </div>
-
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Шагов за кадр:</span>
-                    <input
-                        type="number"
-                        min={MIN_SPEED}
-                        max={MAX_SPEED}
-                        value={speed}
-                        onChange={handleSpeedChange}
-                        style={{ width: '70px' }}
-                    />
-
-                    <span className="sim-label" style={{ marginLeft: '20px' }}>dt (шаг физики):</span>
-                    <input
-                        type="number"
-                        step="0.00001"
-                        min="0.00001"
-                        value={dt}
-                        onChange={handleDtChange}
-                        style={{ width: '90px' }}
-                    />
-                </div>
-
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Гравитация (G):</span>
-                    <input type="range" min={MIN_G} max={MAX_G} step={G_STEP} value={gravity} onChange={(e) => setGravity(Number(e.target.value))} />
-                    <span className="sim-value">{gravity.toFixed(1)}</span>
-
-                    <span className="sim-label" style={{ marginLeft: '20px' }}>Сглаживание:</span>
-                    <input type="range" min={MIN_SOFTENING} max={MAX_SOFTENING} step={SOFTENING_STEP} value={softening} onChange={(e) => setSoftening(Number(e.target.value))} />
-                    <span className="sim-value">{softening.toFixed(2)}</span>
-                </div>
-
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Энергия:</span>
-                    <span className="sim-value" style={{ minWidth: '100px' }}>{renderEnergy()}</span>
-                </div>
-
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Пресеты:</span>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {PRESETS.map((p) => (
-                            <button key={p.name} onClick={() => onPresetSelect(p)} style={{ fontSize: '12px', padding: '6px 12px' }}>
-                                {p.name}
-                            </button>
-                        ))}
+                {!isPanelCollapsed && <>
+                    <div className="orbit-selection">
+                        <OrbitPreview name={activePreset?.name} />
+                        <div className="orbit-selection-copy"><span className="eyebrow">{activePreset?.group ?? 'Своя система'}</span>
+                            <strong>{activePreset?.name ?? 'Свободное движение'}</strong>
+                            <span className="orbit-description">{activePreset?.description ?? 'Двойной щелчок по телу открывает его параметры.'}</span>
+                        </div>
+                        <button className="gallery-toggle" aria-expanded={galleryOpen} onClick={() => setGalleryOpen(!galleryOpen)}>
+                            {galleryOpen ? 'Закрыть каталог' : 'Выбрать орбиту'} <span className="count-badge">{PRESETS.length}</span>
+                        </button>
                     </div>
-                </div>
-            </div>
+                    {galleryOpen && <div className="orbit-gallery">
+                        <div className="orbit-groups" aria-label="Семейства орбит">
+                            {groups.map((name) => <button key={name} aria-pressed={group === name} onClick={() => setGroup(name)}>{name}</button>)}
+                        </div>
+                        <div className="orbit-cards" aria-label="Пресеты">
+                            {PRESETS.filter((p) => group === 'Все' || p.group === group).map((p) =>
+                                <button className="orbit-card" key={p.name} aria-pressed={activePreset?.name === p.name}
+                                    onClick={() => { onPresetSelect(p); setGalleryOpen(false); }}>
+                                    <OrbitPreview name={p.name} /><span>{p.name}</span>
+                                    <small>{p.solution ? 'Точное решение' : p.period ? `Период ≈ ${p.period.toFixed(2)}` : 'Численная орбита'}</small>
+                                </button>)}
+                        </div>
+                    </div>}
+                    <div className="sim-controls-grid">
+                        <RangeNumber label="Скорость (×)" value={speed} onChange={setSpeed} min={0.1} max={10} step={0.1} />
+                        <RangeNumber label="Шаг времени" value={dt} onChange={setDt} min={0.00001} max={0.01} step={0.00001} />
+                        <RangeNumber label="Гравитация (G)" value={gravity} onChange={setGravity} min={0} max={5} step={0.01} />
+                        <RangeNumber label="Сглаживание" value={softening} onChange={setSoftening} min={0} max={1} step={0.001} />
+                    </div>
+                    <div className="sim-row sim-options">
+                        {activePreset?.solution && <label><input type="checkbox" checked={exactMode} onChange={(e) => onExactModeChange(e.target.checked)} /> Точное решение пресета</label>}
+                        {activePreset?.period && <label><input type="checkbox" checked={loopMode} onChange={(e) => onLoopModeChange(e.target.checked)} /> Повтор периода</label>}
+                        <label><input type="checkbox" checked={collisions} onChange={(e) => onCollisionsChange(e.target.checked)} /> Столкновения</label>
+                        <label><input type="checkbox" checked={showStats} onChange={(e) => setShowStats(e.target.checked)} /> Аналитика</label>
+                        <button className="quiet-button" onClick={onShowReport}>Отчёт</button>
+                        <button className="quiet-button" onClick={onClear}>Очистить</button>
+                    </div>
+                    <div className="simulation-footer">
+                        <span className="mode-badge" role="status">{exactMode ? 'Точное решение Ньютона' : loopMode ? 'Повтор численного периода' : 'Численное решение Ньютона'}</span>
+                        <span className="energy-label">E <b>{renderEnergy()}</b></span>
+                        <span className="outcome-label">{exactMode || loopMode ? 'Периодическая демонстрация' : OUTCOME_LABELS[outcome]}</span>
+                    </div>
+                    <details className="mode-help"><summary>О режиме движения</summary>
+                        <p>{loopMode ? 'Повторяется один рассчитанный период опубликованной орбиты. Это численная демонстрация с небольшой погрешностью замыкания, а не точное аналитическое решение. Снимите флажок, чтобы продолжить свободную эволюцию.'
+                            : exactMode ? 'Точное решение для выбранной конфигурации. Изменение тел, G или сглаживания включает численное движение.'
+                                : 'Система движется по уравнениям Ньютона. Неустойчивые орбиты могут распадаться. Изменение параметров меняет движение.'}</p>
+                    </details>
+                </>}
+            </section>
         </div>
     );
 }

@@ -1,40 +1,23 @@
-import { useState } from 'react';
-import { formatNumber } from './utils';
+﻿import { useState } from 'react';
+import { RangeNumber } from './RangeNumber';
+
+const FIELDS = [
+    ['m', 'Масса', 0.001, 100, 0.01],
+    ['x', 'X', -50, 50, 0.01], ['y', 'Y', -50, 50, 0.01],
+    ['vx', 'Скорость X', -20, 20, 0.01], ['vy', 'Скорость Y', -20, 20, 0.01],
+];
 
 export function BodyMenu({ menu, onApply, onDelete, onClose }) {
-    const [drafts, setDrafts] = useState(() => ({
-        m: formatNumber(menu.body.m),
-        x: formatNumber(menu.body.x),
-        y: formatNumber(menu.body.y),
-        vx: formatNumber(menu.body.vx),
-        vy: formatNumber(menu.body.vy),
-    }));
-
-    const handleChange = (key, raw) => {
-        setDrafts((prev) => ({ ...prev, [key]: raw }));
-        const value = Number(raw.replace(',', '.'));
-        if (raw.trim() !== '' && Number.isFinite(value) && (key !== 'm' || value > 0)) {
-            onApply(menu.index, { [key]: value });
-        }
-    };
-
+    const [values, setValues] = useState(() => ({ ...menu.body }));
     return (
-        <div
-            className="body-menu"
-            style={{ left: Math.min(menu.x, window.innerWidth - 260), top: Math.min(menu.y, window.innerHeight - 350) }}
-            onPointerDown={(e) => e.stopPropagation()}
-        >
-            <div className="body-menu-header">
-                <span>Планета {menu.index + 1}</span>
-                <button onClick={onClose} style={{ padding: '0 8px', borderRadius: '50%', background: 'transparent', border: 'none', boxShadow: 'none' }}>X</button>
-            </div>
+        <div className="body-menu"
+            style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 370)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 350)) }}
+            onPointerDown={(e) => e.stopPropagation()}>
+            <div className="body-menu-header"><span>Тело {menu.index + 1}</span><button onClick={onClose} aria-label="Закрыть редактор">×</button></div>
             <div className="body-menu-grid">
-                {['m', 'x', 'y', 'vx', 'vy'].map((key) => (
-                    <div key={key} className="body-menu-field">
-                        <label>{key === 'm' ? 'Масса' : key === 'x' ? 'X' : key === 'y' ? 'Y' : key === 'vx' ? 'Скор. X' : 'Скор. Y'}</label>
-                        <input type="text" value={drafts[key]} onChange={(e) => handleChange(key, e.target.value)} />
-                    </div>
-                ))}
+                {FIELDS.map(([key, label, min, max, step]) => <RangeNumber key={key} label={label} value={values[key]}
+                    min={Math.min(min, values[key])} max={Math.max(max, values[key])} step={step}
+                    onChange={(value) => { setValues((prev) => ({ ...prev, [key]: value })); onApply(menu.index, { [key]: value }); }} />)}
             </div>
             <div className="body-menu-actions">
                 <button onClick={() => onDelete(menu.index)} className="btn-danger">Удалить</button>

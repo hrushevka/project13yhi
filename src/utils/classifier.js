@@ -1,56 +1,28 @@
-const ESCAPE_DIST = 50;
+﻿export { totalEnergy } from './physics.js';
 
-export function totalEnergy(bodies, G, softening) {
-    let kinetic = 0;
-    let potential = 0;
-    const eps2 = softening * softening;
-
-    for (let i = 0; i < bodies.length; i++) {
-        const b = bodies[i];
-        kinetic += 0.5 * b.m * (b.vx * b.vx + b.vy * b.vy);
-        for (let j = i + 1; j < bodies.length; j++) {
-            const dx = bodies[j].x - b.x;
-            const dy = bodies[j].y - b.y;
-            const r = Math.sqrt(dx * dx + dy * dy + eps2);
-            potential -= (G * b.m * bodies[j].m) / r;
-        }
-    }
-    return kinetic + potential;
-}
-
-/**
- * Классификация исхода.
- * @param {Array} bodies — текущее состояние тел
- * @param {number} G — гравитационная постоянная
- * @param {number} softening — сглаживание
- * @param {boolean} hasCollided — флаг, было ли реальное слияние/распад (merge/fragment)
- */
+// An escape candidate must be far from every companion and receding from their
+// centre of mass with positive relative two-cluster energy. This is a diagnostic,
+// not a proof of long-term stability of a three-body orbit.
 export function classify(bodies, G, softening, hasCollided = false) {
     if (bodies.length === 0) return 'unknown';
-
-    // 1. Если было реальное столкновение (merge или fragment), ставим 'collision'
-    if (hasCollided) {
-        // Но проверяем, не вылетели ли осколки за пределы с положительной энергией
-        const energy = totalEnergy(bodies, G, softening);
-        let hasEjected = false;
-        for (const b of bodies) {
-            if (Math.hypot(b.x, b.y) > ESCAPE_DIST && energy > 0) {
-                hasEjected = true;
-                break;
+    if (bodies.length > 1) {
+        for (let i = 0; i < bodies.length; i++) {
+            const b = bodies[i];
+            let mass = 0, x = 0, y = 0, vx = 0, vy = 0, minDistance = Infinity;
+            for (let j = 0; j < bodies.length; j++) {
+                if (i === j) continue;
+                const other = bodies[j];
+                mass += other.m;
+                x += other.m * other.x; y += other.m * other.y;
+                vx += other.m * other.vx; vy += other.m * other.vy;
+                minDistance = Math.min(minDistance, Math.hypot(b.x - other.x, b.y - other.y));
             }
+            const dx = b.x - x / mass, dy = b.y - y / mass;
+            const dvx = b.vx - vx / mass, dvy = b.vy - vy / mass;
+            const energy = (dvx * dvx + dvy * dvy) / 2 - G * (mass + b.m) / Math.hypot(dx, dy, softening);
+            if (minDistance > 50 && dx * dvx + dy * dvy > 0 && energy > 0) return 'ejection';
         }
-        return hasEjected ? 'ejection' : 'collision';
     }
-
-    // 2. Если тела просто пролетают близко, но не было слияния — это 'stable'
-    if (bodies.length === 1) return 'unknown';
-
-    // 3. Проверяем выброс (тела улетели далеко и энергия положительная)
-    const energy = totalEnergy(bodies, G, softening);
-    for (const b of bodies) {
-        if (Math.hypot(b.x, b.y) > ESCAPE_DIST && energy > 0) return 'ejection';
-    }
-
-    // 4. Во всех остальных случаях — стабильная орбита
-    return 'stable';
+    if (hasCollided) return 'collision';
+    return bodies.length > 1 ? 'stable' : 'unknown';
 }

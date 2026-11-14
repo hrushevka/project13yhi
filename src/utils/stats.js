@@ -1,3 +1,5 @@
+import { totalEnergy } from './physics.js';
+
 export function createStats() {
     return {
         elapsed: 0,
@@ -30,6 +32,8 @@ export function resetStats(stats, bodies, G, softening, dt) {
     stats.G = G;
     stats.softening = softening;
     stats.dt = dt;
+    stats.initialEnergy = totalEnergy(bodies, G, softening);
+    stats.currentEnergy = stats.initialEnergy;
     stats.initialBodyCount = bodies.length;
     stats.currentBodyCount = bodies.length;
     stats.maxBodyCount = bodies.length;
@@ -88,13 +92,13 @@ export function sampleStats(stats, bodies, t, energy, events = []) {
     for (const ev of events) {
         if (ev.kind === 'merge') {
             stats.merges += 1;
-            stats.lastCollisionTime = t;
-            if (stats.firstCollisionTime === null) stats.firstCollisionTime = t;
+            stats.lastCollisionTime = t - stats.dt + (ev.time ?? stats.dt);
+            if (stats.firstCollisionTime === null) stats.firstCollisionTime = stats.lastCollisionTime;
         } else if (ev.kind === 'fragment') {
             stats.fragments += 1;
             stats.lastCollisionTime = t;
-            if (stats.firstCollisionTime === null) stats.firstCollisionTime = t;
-            if (ev.debris) stats.debrisCount += ev.debris.length;
+            if (stats.firstCollisionTime === null) stats.firstCollisionTime = stats.lastCollisionTime;
+            if (ev.debris) stats.debrisCount += ev.debris.filter((b) => b.isDebris).length;
         }
     }
 }

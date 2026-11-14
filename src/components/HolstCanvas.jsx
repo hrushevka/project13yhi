@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     FALLBACK_PRESET,
     isStateFinite,
-    stepBodiesVelocityVerlet,
+    stepSimulation,
     toSimBodies,
     recenterToCM,
     totalEnergy,
-    detectAndResolve,
 } from '../utils/physics';
+import { PRESETS } from '../utils/presets';
+import { preparePeriodicOrbit, evaluatePeriodicOrbit } from '../utils/periodic-orbits';
+import { evaluateCentralOrbit } from '../utils/orbits';
 import { classify } from '../utils/classifier';
 import { createStats, resetStats, sampleStats } from '../utils/stats';
 import { BodyMenu } from './BodyMenu';
@@ -18,7 +20,7 @@ import { bodyRadius, cloneBodies, formatSimTime, COLORS } from './utils';
 
 const MAX_BODIES = 3;
 const MIN_BODIES = 1;
-const MAX_TRAIL_POINTS = 900;
+const MAX_TRAIL_POINTS = 4000;
 const TRAIL_SAMPLE_TIME = 0.01;
 const GRID_STEP = 60;
 const MIN_ZOOM = 10;
@@ -26,7 +28,6 @@ const MAX_ZOOM = 1000;
 const BASE_ZOOM = 120;
 const STATS_RENDER_EVERY = 10;
 
-const CONTACT_RADIUS = 0.15;
 const V_FRAG = 1.0;
 const Q_MIN = 0.2;
 const N_DEBRIS = 6;
@@ -36,9 +37,16 @@ function attachContactRadius(body, idx) {
     const mass = body.m || 1;
     return {
         ...body,
-        r: Math.max(0.01, 0.05 * Math.cbrt(mass)), // <--- УМЕНЬШИЛИ БАЗУ С 0.15 ДО 0.05
+        r: Math.max(0.01, 0.05 * Math.cbrt(mass)),
         id: body.id || `body-${idx}-${Math.random().toString(36).slice(2, 8)}`,
     };
+}
+
+function fittedZoom(preset, bodies, width, height) {
+    const initial = preset?.bodies ?? bodies;
+    const apoapsis = preset?.solution ? (1 + preset.solution.eccentricity) / (1 - preset.solution.eccentricity) : 1;
+    const extent = Math.max(preset?.extent ?? 1.1, ...initial.map((b) => Math.hypot(b.x, b.y) * apoapsis));
+    return Math.max(MIN_ZOOM, Math.min(BASE_ZOOM, width * 0.42 / extent, height * 0.28 / extent));
 }
 
 export function HolstCanvas() {
@@ -46,14 +54,37 @@ export function HolstCanvas() {
     const canvasRef = useRef(null);
 
     const [running, setRunning] = useState(false);
-    const [speed, setSpeed] = useState(100);
+    const [simulationError, setSimulationError] = useState(null);
+    const [speed, setSpeed] = useState(1);
+    const [activePreset, setActivePreset] = useState(PRESETS[0]);
+    const [exactMode, setExactMode] = useState(false);
+    const [collisions, setCollisions] = useState(false);
+    const [loopMode, setLoopMode] = useState(false);
+    const loopModeRef = useRef(false);
+    const periodicOrbitRef = useRef(null);
+    const presetRef = useRef(PRESETS[0]);
+    const setupPresetRef = useRef(PRESETS[0]);
+    const exactModeRef = useRef(false);
+    const collisionsRef = useRef(false);
+    const accumulatorRef = useRef(0);
     const [outcome, setOutcome] = useState('unknown');
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState(null);
     const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-    const [showStats, setShowStats] = useState(true);
+    const [showStats, setShowStats] = useState(() => {
+        try { const saved = localStorage.getItem('cosmos.analytics'); return saved === null ? window.innerWidth >= 900 : saved === 'true'; }
+        catch { return window.innerWidth >= 900; }
+    });
+    const toggleStats = (value) => {
+        setShowStats(value);
+        try { localStorage.setItem('cosmos.analytics', String(value)); } catch { /* Storage can be disabled. */ }
+    };
     const [showReport, setShowReport] = useState(false);
-    const [statsView, setStatsView] = useState(() => ({ ...createStats() }));
+    const [statsView, setStatsView] = useState(() => {
+        const stats = createStats();
+        resetStats(stats, toSimBodies(FALLBACK_PRESET.bodies), FALLBACK_PRESET.g, FALLBACK_PRESET.softening, FALLBACK_PRESET.dt);
+        return stats;
+    });
     
     const [lockCM, setLockCM] = useState(false);
 
@@ -76,14 +107,15 @@ export function HolstCanvas() {
     const trailsRef = useRef([[], [], []]);
     const simTimeRef = useRef(0);
     const trailClockRef = useRef(0);
-    const statsRef = useRef(createStats());
+    const statsRef = useRef({ ...statsView });
     const frameCounterRef = useRef(0);
 
     const dragRef = useRef({ kind: 'none' });
     const selectedRef = useRef(null);
     const starsRef = useRef([]);
 
-    if (starsRef.current.length === 0) {
+    useEffect(() => {
+        starsRef.current = [];
         for (let i = 0; i < 150; i++) {
             starsRef.current.push({
                 x: Math.random(),
@@ -92,7 +124,7 @@ export function HolstCanvas() {
                 alpha: Math.random() * 0.5 + 0.2,
             });
         }
-    }
+    }, []);
 
     useEffect(() => { runningRef.current = running; }, [running]);
     useEffect(() => { speedRef.current = speed; }, [speed]);
@@ -114,10 +146,22 @@ export function HolstCanvas() {
 
     const resetMeta = useCallback(() => {
         hasCollidedRef.current = false;
+        setSimulationError(null);
+    }, []);
+
+    const invalidatePreset = useCallback(() => {
+        presetRef.current = null;
+        setupPresetRef.current = null;
+        exactModeRef.current = false;
+        setActivePreset(null);
+        setExactMode(false);
+        loopModeRef.current = false;
+        setLoopMode(false);
     }, []);
 
     const commitEdit = useCallback(() => {
-        recenterToCM(stateRef.current);
+        invalidatePreset();
+        if (lockCMRef.current) recenterToCM(stateRef.current);
         trailsRef.current = stateRef.current.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
@@ -128,11 +172,28 @@ export function HolstCanvas() {
         setBodyCount(stateRef.current.length);
         setOutcome('unknown');
         refreshStatsView();
-    }, [syncTimeText, resetMeta, refreshStatsView]);
+    }, [syncTimeText, resetMeta, refreshStatsView, invalidatePreset]);
 
-    const setNewBodies = useCallback((bodies, g, softeningValue, newDt, lock) => {
+    const setNewBodies = useCallback((preset) => {
+        let periodicOrbit = null;
+        try { if (preset.period) periodicOrbit = preparePeriodicOrbit(preset); }
+        catch (error) { setSimulationError(error.message); return; }
+        periodicOrbitRef.current = periodicOrbit;
+        loopModeRef.current = !!periodicOrbit;
+        setLoopMode(!!periodicOrbit);
+        const { bodies, g, softening: softeningValue, dt: newDt, lockCM: lock } = preset;
+        presetRef.current = preset;
+        setupPresetRef.current = preset;
+        exactModeRef.current = !!preset.solution;
+        collisionsRef.current = false;
+        accumulatorRef.current = 0;
+        setActivePreset(preset);
+        setExactMode(!!preset.solution);
+        setCollisions(false);
+        runningRef.current = false;
+        setMenu(null);
         stateRef.current = bodies.map(attachContactRadius);
-        recenterToCM(stateRef.current);
+        if (lock) recenterToCM(stateRef.current);
         setupRef.current = cloneBodies(stateRef.current);
         trailsRef.current = bodies.map(() => []);
         simTimeRef.current = 0;
@@ -148,7 +209,7 @@ export function HolstCanvas() {
         setLockCM(!!lock);
         lockCMRef.current = !!lock;
 
-        cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
+        cameraRef.current = { x: 0, y: 0, zoom: fittedZoom(periodicOrbit ? { ...preset, extent: periodicOrbit.extent } : preset, bodies, window.innerWidth, window.innerHeight) };
         resetMeta();
         resetStats(statsRef.current, stateRef.current, g, softeningValue ?? 0, cleanDt);
         syncTimeText();
@@ -161,28 +222,34 @@ export function HolstCanvas() {
     const processStep = useCallback((H) => {
         const state = stateRef.current;
         
-        // Используем Velocity Verlet для стабильности Лагранжа и Восьмерки
-        stepBodiesVelocityVerlet(state, gravityRef.current, softeningRef.current, H);
-
-        const result = detectAndResolve(state, H, {
-            vFrag: V_FRAG,
-            qMin: Q_MIN,
-            nDebris: N_DEBRIS,
-            spread: DEBRIS_SPREAD,
-            debrisMassFraction: DEBRIS_MASS_FRACTION,
-            onEvent: (ev) => {
-                if (ev.kind === 'merge' || ev.kind === 'fragment') {
-                    hasCollidedRef.current = true;
-                }
-                if (ev.kind === 'fragment') {
-                    state.push(...ev.debris.map((d) => ({ ...d, r: Math.max(d.r, 0.02) })));
-                }
-            },
-        });
-
-        if (!lockCMRef.current) {
-            recenterToCM(state);
+        const before = cloneBodies(state);
+        let result;
+        try {
+            if (loopModeRef.current && periodicOrbitRef.current) {
+                evaluatePeriodicOrbit(periodicOrbitRef.current, simTimeRef.current + H, state);
+                result = { events: [] };
+            } else if (exactModeRef.current && presetRef.current?.solution) {
+                evaluateCentralOrbit(presetRef.current, simTimeRef.current + H, state);
+                result = { events: [] };
+            } else result = stepSimulation(state, gravityRef.current, softeningRef.current, H, {
+                collisions: collisionsRef.current,
+                vFrag: V_FRAG, qMin: Q_MIN, nDebris: N_DEBRIS,
+                spread: DEBRIS_SPREAD, debrisMassFraction: DEBRIS_MASS_FRACTION,
+            });
+            if (!isStateFinite(state)) throw new Error('Simulation became non-finite; reduce the time step.');
+        } catch (error) {
+            state.splice(0, state.length, ...before);
+            runningRef.current = false;
+            setRunning(false);
+            setSimulationError(error.message);
+            return null;
         }
+        if (result.events.length > 0) {
+            hasCollidedRef.current = true;
+            trailsRef.current = state.map(() => []);
+            setMenu(null);
+        }
+        if (lockCMRef.current) recenterToCM(state);
 
         simTimeRef.current += H;
         trailClockRef.current += H;
@@ -196,6 +263,7 @@ export function HolstCanvas() {
             }
         }
 
+        statsRef.current.dt = H;
         const energy = totalEnergy(state, gravityRef.current, softeningRef.current);
         sampleStats(statsRef.current, state, simTimeRef.current, energy, result.events);
 
@@ -214,7 +282,7 @@ export function HolstCanvas() {
 
     const advanceOneStep = useCallback(() => {
         if (stateRef.current.length < MIN_BODIES) return;
-        processStep(dtRef.current);
+        if (!processStep(dtRef.current)) return;
         updateOutcome();
         setBodyCount(stateRef.current.length);
         syncTimeText();
@@ -230,12 +298,16 @@ export function HolstCanvas() {
         let raf = 0;
         let cachedWidth = 0;
         let cachedHeight = 0;
+        let lastFrameTime = null;
 
         const resize = () => {
             const rect = canvas.parentElement.getBoundingClientRect();
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
             canvas.width = Math.floor(rect.width * dpr);
             canvas.height = Math.floor(rect.height * dpr);
+            if (cachedWidth > 0 && cachedHeight > 0) {
+                cameraRef.current.zoom = fittedZoom(presetRef.current, stateRef.current, rect.width, rect.height);
+            }
             cachedWidth = rect.width;
             cachedHeight = rect.height;
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -243,9 +315,9 @@ export function HolstCanvas() {
         resize();
         window.addEventListener('resize', resize);
 
-        const step = () => {
+        const step = (wallSeconds) => {
             const state = stateRef.current;
-            if (!runningRef.current || state.length < MIN_BODIES) return;
+            if (!runningRef.current || state.length < MIN_BODIES) { accumulatorRef.current = 0; return; }
 
             for (let i = 0; i < state.length; i++) {
                 const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
@@ -253,10 +325,14 @@ export function HolstCanvas() {
             }
 
             const H = dtRef.current;
-            const stepCount = Math.max(1, Number(speedRef.current) || 1);
+            accumulatorRef.current += wallSeconds * speedRef.current;
+            const stepCount = Math.min(2000, Math.floor(accumulatorRef.current / H));
+            accumulatorRef.current -= stepCount * H;
+            // Drop excess wall time under load instead of freezing the browser catching up.
+            accumulatorRef.current = Math.min(accumulatorRef.current, H);
 
             for (let s = 0; s < stepCount; s++) {
-                processStep(H);
+                if (!processStep(H)) break;
             }
 
             if (!isStateFinite(state)) {
@@ -279,7 +355,7 @@ export function HolstCanvas() {
             const width = cachedWidth;
             const height = cachedHeight;
             const cx = width / 2 + cameraRef.current.x;
-            const cy = height / 2 + cameraRef.current.y;
+            const cy = height * 0.35 + cameraRef.current.y;
             const k = cameraRef.current.zoom;
             const editing = !runningRef.current;
 
@@ -400,8 +476,10 @@ export function HolstCanvas() {
             });
         };
 
-        const frame = () => {
-            step();
+        const frame = (timestamp) => {
+            const elapsed = lastFrameTime === null ? 0 : Math.min(0.05, (timestamp - lastFrameTime) / 1000);
+            lastFrameTime = timestamp;
+            step(elapsed);
             draw();
             raf = requestAnimationFrame(frame);
         };
@@ -420,11 +498,11 @@ export function HolstCanvas() {
             if (newZoom === cam.zoom) return;
 
             const worldX = (mouseX - rect.width / 2 - cam.x) / cam.zoom;
-            const worldY = -(mouseY - rect.height / 2 - cam.y) / cam.zoom;
+            const worldY = -(mouseY - rect.height * 0.35 - cam.y) / cam.zoom;
 
             cam.zoom = newZoom;
             cam.x = mouseX - rect.width / 2 - worldX * newZoom;
-            cam.y = mouseY - rect.height / 2 + worldY * newZoom;
+            cam.y = mouseY - rect.height * 0.35 + worldY * newZoom;
         };
 
         canvas.addEventListener('wheel', handleNativeWheel, { passive: false });
@@ -447,7 +525,7 @@ export function HolstCanvas() {
         const k = cameraRef.current.zoom;
         return {
             x: width / 2 + cameraRef.current.x + b.x * k,
-            y: height / 2 + cameraRef.current.y - b.y * k,
+            y: height * 0.35 + cameraRef.current.y - b.y * k,
         };
     };
 
@@ -457,7 +535,7 @@ export function HolstCanvas() {
         const k = cameraRef.current.zoom;
         return {
             x: (mousePos.x - width / 2 - cameraRef.current.x) / k,
-            y: -(mousePos.y - height / 2 - cameraRef.current.y) / k,
+            y: -(mousePos.y - height * 0.35 - cameraRef.current.y) / k,
         };
     };
 
@@ -475,7 +553,7 @@ export function HolstCanvas() {
     };
 
     const handlePointerDown = (e) => {
-        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.top-navbar') || e.target.closest('.stats-panel')) return;
+        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.stats-panel')) return;
         setMenu(null);
         e.currentTarget.setPointerCapture(e.pointerId);
 
@@ -491,7 +569,7 @@ export function HolstCanvas() {
             if (bodyIndex !== null) {
                 const world = toWorld(mousePos);
                 const b = stateRef.current[bodyIndex];
-                dragRef.current = { kind: 'move', index: bodyIndex, dx: b.x - world.x, dy: b.y - world.y };
+                dragRef.current = { kind: 'move', index: bodyIndex, dx: b.x - world.x, dy: b.y - world.y, startX: mousePos.x, startY: mousePos.y, moved: false };
                 return;
             }
             if (stateRef.current.length < MAX_BODIES) {
@@ -517,6 +595,8 @@ export function HolstCanvas() {
             cameraRef.current.x = drag.camX + (mousePos.x - drag.startX);
             cameraRef.current.y = drag.camY + (mousePos.y - drag.startY);
         } else if (drag.kind === 'move') {
+            if (!drag.moved && Math.hypot(mousePos.x - drag.startX, mousePos.y - drag.startY) < 3) return;
+            drag.moved = true;
             const world = toWorld(mousePos);
             stateRef.current = stateRef.current.map((b, i) => {
                 if (i !== drag.index) return b;
@@ -527,14 +607,14 @@ export function HolstCanvas() {
 
     const handlePointerUp = (e) => {
         if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-        if (dragRef.current.kind === 'move') {
+        if (dragRef.current.kind === 'move' && dragRef.current.moved) {
             commitEdit();
         }
         dragRef.current = { kind: 'none' };
     };
 
     const handleDoubleClick = (e) => {
-        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.top-navbar') || e.target.closest('.stats-panel')) return;
+        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.stats-panel')) return;
         const mousePos = getMousePos(e);
         const index = hitBody(mousePos);
         if (index === null) return;
@@ -563,7 +643,7 @@ export function HolstCanvas() {
     };
 
     const resetCamera = () => {
-        cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
+        cameraRef.current = { x: 0, y: 0, zoom: fittedZoom(presetRef.current, stateRef.current, window.innerWidth, window.innerHeight) };
     };
 
     const renderEnergy = () => {
@@ -586,6 +666,7 @@ export function HolstCanvas() {
                 <canvas ref={canvasRef} className="holst-sim-canvas" />
                 {menu && (
                     <BodyMenu
+                        key={menu.index}
                         menu={menu}
                         onApply={handleApplyBody}
                         onDelete={handleDeleteBody}
@@ -594,7 +675,10 @@ export function HolstCanvas() {
                 )}
             </div>
 
-            {showStats && <StatsPanel stats={statsView} />}
+            {simulationError && <div role="alert" className="simulation-error">{simulationError}</div>}
+
+            {showStats ? <StatsPanel stats={statsView} onClose={() => toggleStats(false)} /> :
+                <button className="analytics-reopen" aria-label="Показать аналитику" onClick={() => toggleStats(true)}>◷ Аналитика</button>}
 
             {showReport && (
                 <FinalReport
@@ -608,27 +692,33 @@ export function HolstCanvas() {
                 isPanelCollapsed={isPanelCollapsed}
                 setIsPanelCollapsed={setIsPanelCollapsed}
                 running={running}
-                setRunning={setRunning}
+                setRunning={(value) => { runningRef.current = value; accumulatorRef.current = 0; setRunning(value); if (!value) refreshStatsView(); }}
                 bodyCount={bodyCount}
                 maxBodies={MAX_BODIES}
                 outcome={outcome}
                 timeTextRef={timeTextRef}
                 speed={speed}
-                setSpeed={setSpeed}
+                setSpeed={(value) => { speedRef.current = value; setSpeed(value); }}
                 dt={dt}
-                setDt={setDt}
+                setDt={(value) => { dtRef.current = value; accumulatorRef.current = 0; setDt(value); }}
                 gravity={gravity}
-                setGravity={setGravity}
+                setGravity={(value) => { if (value !== gravityRef.current) invalidatePreset(); gravityRef.current = value; setGravity(value); }}
                 softening={softening}
-                setSoftening={setSoftening}
+                setSoftening={(value) => { if (value !== softeningRef.current) invalidatePreset(); softeningRef.current = value; setSoftening(value); }}
                 showStats={showStats}
-                setShowStats={setShowStats}
+                setShowStats={toggleStats}
                 onShowReport={() => { refreshStatsView(); setShowReport(true); }}
                 onReset={() => {
+                    runningRef.current = false;
                     setRunning(false);
+                    accumulatorRef.current = 0;
+                    presetRef.current = setupPresetRef.current;
+                    setActivePreset(setupPresetRef.current);
                     stateRef.current = cloneBodies(setupRef.current);
                     trailsRef.current = stateRef.current.map(() => []);
                     simTimeRef.current = 0;
+                    trailClockRef.current = 0;
+                    setMenu(null);
                     resetMeta();
                     resetStats(statsRef.current, stateRef.current, gravityRef.current, softeningRef.current, dtRef.current);
                     setOutcome('unknown');
@@ -637,13 +727,31 @@ export function HolstCanvas() {
                     refreshStatsView();
                 }}
                 onClear={() => {
+                    runningRef.current = false;
                     setRunning(false);
                     stateRef.current = [];
                     commitEdit();
                 }}
                 onStep={advanceOneStep}
                 onCenter={resetCamera}
-                onPresetSelect={(p) => setNewBodies(p.bodies, p.g, p.softening, p.dt, p.lockCM)}
+                onPresetSelect={setNewBodies}
+                activePreset={activePreset}
+                exactMode={exactMode}
+                onExactModeChange={(value) => {
+                    if (value && presetRef.current) setNewBodies(presetRef.current);
+                    else { exactModeRef.current = false; setExactMode(false); }
+                }}
+                loopMode={loopMode}
+                onLoopModeChange={(value) => {
+                    if (value && presetRef.current) setNewBodies(presetRef.current);
+                    else { loopModeRef.current = false; setLoopMode(false); }
+                }}
+                collisions={collisions}
+                onCollisionsChange={(value) => {
+                    collisionsRef.current = value;
+                    setCollisions(value);
+                    if (value) { exactModeRef.current = false; setExactMode(false); loopModeRef.current = false; setLoopMode(false); }
+                }}
                 renderEnergy={renderEnergy}
             />
         </div>
