@@ -9,6 +9,7 @@ import {
 import { classify } from '../../utils/classifier';
 import { BodyMenu } from './BodyMenu';
 import { ControlPanel } from './ControlPanel';
+import { SimulationReportModal, SimulationSetupMenu } from './SimulationMenu';
 import {
     bodyRadius,
     cloneBodies,
@@ -51,6 +52,46 @@ function tileShift(tx, ty, salt) {
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+function computeSnapshotMetrics(state, t, g) {
+    const d12 = Math.hypot(state[1].x - state[0].x, state[1].y - state[0].y);
+    const d23 = Math.hypot(state[2].x - state[1].x, state[2].y - state[1].y);
+    const d13 = Math.hypot(state[2].x - state[0].x, state[2].y - state[0].y);
+
+    const v1 = Math.hypot(state[0].vx, state[0].vy);
+    const v2 = Math.hypot(state[1].vx, state[1].vy);
+    const v3 = Math.hypot(state[2].vx, state[2].vy);
+
+    const kinetic =
+        0.5 * state[0].m * v1 * v1 +
+        0.5 * state[1].m * v2 * v2 +
+        0.5 * state[2].m * v3 * v3;
+
+    const potential =
+        -(g * state[0].m * state[1].m) / Math.max(1e-6, d12) -
+        -(g * state[1].m * state[2].m) / Math.max(1e-6, d23) -
+        -(g * state[0].m * state[2].m) / Math.max(1e-6, d13);
+
+    const cleanPotential =
+        -(g * state[0].m * state[1].m) / Math.max(1e-6, d12) -
+        (g * state[1].m * state[2].m) / Math.max(1e-6, d23) -
+        (g * state[0].m * state[2].m) / Math.max(1e-6, d13);
+
+    void potential;
+
+    return {
+        t,
+        d12,
+        d23,
+        d13,
+        v1,
+        v2,
+        v3,
+        kinetic,
+        potential: cleanPotential,
+        totalE: kinetic + cleanPotential,
+    };
+}
+
 export function HolstCanvas() {
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
@@ -60,6 +101,8 @@ export function HolstCanvas() {
     const [outcome, setOutcome] = useState('unknown');
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState(null);
+    const [showSimSetup, setShowSimSetup] = useState(false);
+    const [simReport, setSimReport] = useState(null);
     const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
     const [gravity, setGravity] = useState(toFloat(FALLBACK_PRESET.g, 1));
@@ -77,6 +120,7 @@ export function HolstCanvas() {
     const trailsRef = useRef([[], [], []]);
     const simTimeRef = useRef(0);
     const trailClockRef = useRef(0);
+    const activeSimSessionRef = useRef(null);
 
     const dragRef = useRef({ kind: 'none' });
     const selectedRef = useRef(null);
@@ -107,6 +151,7 @@ export function HolstCanvas() {
     }, [syncTimeText]);
 
     const setNewBodies = useCallback((bodies, g, newDt) => {
+        activeSimSessionRef.current = null;
         stateRef.current = cloneBodies(bodies);
         recenterToCM(stateRef.current);
         setupRef.current = cloneBodies(stateRef.current);
@@ -125,6 +170,88 @@ export function HolstCanvas() {
         setMenu(null);
         setRunning(false);
     }, [syncTimeText]);
+
+    const finishTimedSimulation = useCallback((session, finalOutcome) => {
+        activeSimSessionRef.current = null;
+        runningRef.current = false;
+        setRunning(false);
+
+        const elapsed = simTimeRef.current;
+
+        stateRef.current = cloneBodies(session.savedState);
+        setupRef.current = cloneBodies(session.savedSetup);
+        trailsRef.current = session.savedTrails.map((t) => t.map((pt) => ({ ...pt })));
+        simTimeRef.current = session.savedSimTime;
+        trailClockRef.current = session.savedTrailClock;
+        setOutcome(session.savedOutcome);
+        syncTimeText();
+
+        const samples = session.samples;
+        const initialEnergy = samples.length > 0 ? samples[0].totalE : 0;
+        const finalEnergy = samples.length > 0 ? samples[samples.length - 1].totalE : 0;
+
+        setSimReport({
+            targetTime: session.targetTime,
+            elapsedTime: elapsed,
+            expected: session.expectedOutcome,
+            actual: finalOutcome,
+            matched: finalOutcome === session.expectedOutcome,
+            minDist: Number.isFinite(session.minDist) ? session.minDist : 0,
+            maxDist: Number.isFinite(session.maxDist) ? session.maxDist : 0,
+            maxSpeed: Number.isFinite(session.maxSpeed) ? session.maxSpeed : 0,
+            initialEnergy,
+            energyDrift: Math.abs(finalEnergy - initialEnergy),
+            samples,
+        });
+    }, [syncTimeText]);
+
+    const startTimedSimulation = (targetTime, expectedOutcome) => {
+        if (stateRef.current.length !== MAX_BODIES) return;
+        setShowSimSetup(false);
+        setSimReport(null);
+        setMenu(null);
+
+        const savedState = cloneBodies(stateRef.current);
+        const savedSetup = cloneBodies(setupRef.current);
+        const savedTrails = trailsRef.current.map((t) => t.map((pt) => ({ ...pt })));
+        const savedSimTime = simTimeRef.current;
+        const savedTrailClock = trailClockRef.current;
+        const savedOutcome = outcome;
+
+        const startBodies = cloneBodies(setupRef.current.length === MAX_BODIES ? setupRef.current : stateRef.current);
+        recenterToCM(startBodies);
+        stateRef.current = startBodies;
+        trailsRef.current = startBodies.map(() => []);
+        simTimeRef.current = 0;
+        trailClockRef.current = 0;
+        syncTimeText();
+
+        const g = gravityRef.current;
+        const firstSample = computeSnapshotMetrics(startBodies, 0, g);
+        const minD = Math.min(firstSample.d12, firstSample.d23, firstSample.d13);
+        const maxD = Math.max(firstSample.d12, firstSample.d23, firstSample.d13);
+        const maxV = Math.max(firstSample.v1, firstSample.v2, firstSample.v3);
+
+        activeSimSessionRef.current = {
+            targetTime,
+            expectedOutcome,
+            sampleInterval: Math.max(0.01, targetTime / 180),
+            nextSampleTime: Math.max(0.01, targetTime / 180),
+            samples: [firstSample],
+            minDist: minD,
+            maxDist: maxD,
+            maxSpeed: maxV,
+            savedState,
+            savedSetup,
+            savedTrails,
+            savedSimTime,
+            savedTrailClock,
+            savedOutcome,
+        };
+
+        runningRef.current = true;
+        setRunning(true);
+    };
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -161,6 +288,7 @@ export function HolstCanvas() {
             const H = dtRef.current;
             const currentSpeed = Math.max(0.01, toFloat(speedRef.current, 0.1));
             const stepCount = Math.max(1, Math.min(4000, Math.round((currentSpeed / 60) / H)));
+            const session = activeSimSessionRef.current;
 
             for (let s = 0; s < stepCount; s++) {
                 stepBodiesInPlace(state, g, 0, H);
@@ -175,6 +303,42 @@ export function HolstCanvas() {
                         const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
                         trail.push({ x: state[i].x, y: state[i].y });
                         if (trail.length > MAX_TRAIL_POINTS) trail.shift();
+                    }
+                }
+
+                if (session) {
+                    if (!isStateFinite(state)) {
+                        finishTimedSimulation(session, 'ejection');
+                        return;
+                    }
+
+                    const d12 = Math.hypot(state[1].x - state[0].x, state[1].y - state[0].y);
+                    const d23 = Math.hypot(state[2].x - state[1].x, state[2].y - state[1].y);
+                    const d13 = Math.hypot(state[2].x - state[0].x, state[2].y - state[0].y);
+                    const stepMinD = Math.min(d12, d23, d13);
+                    const stepMaxD = Math.max(d12, d23, d13);
+                    if (stepMinD < session.minDist) session.minDist = stepMinD;
+                    if (stepMaxD > session.maxDist) session.maxDist = stepMaxD;
+
+                    if (simTimeRef.current >= session.nextSampleTime || simTimeRef.current >= session.targetTime) {
+                        const snap = computeSnapshotMetrics(state, simTimeRef.current, g);
+                        session.samples.push(snap);
+                        const stepMaxV = Math.max(snap.v1, snap.v2, snap.v3);
+                        if (stepMaxV > session.maxSpeed) session.maxSpeed = stepMaxV;
+                        session.nextSampleTime += session.sampleInterval;
+                    }
+
+                    const status = classify(state, g, 0);
+                    if (status === 'collision' || status === 'ejection') {
+                        const snap = computeSnapshotMetrics(state, simTimeRef.current, g);
+                        session.samples.push(snap);
+                        finishTimedSimulation(session, status);
+                        return;
+                    }
+
+                    if (simTimeRef.current >= session.targetTime) {
+                        finishTimedSimulation(session, 'stable');
+                        return;
                     }
                 }
             }
@@ -388,7 +552,7 @@ export function HolstCanvas() {
             window.removeEventListener('resize', resize);
             canvas.removeEventListener('wheel', handleNativeWheel);
         };
-    }, [syncTimeText]);
+    }, [finishTimedSimulation, syncTimeText]);
 
     const getMousePos = (e) => {
         const rect = canvasRef.current.getBoundingClientRect();
@@ -591,8 +755,14 @@ export function HolstCanvas() {
         setMenu(null);
     };
 
+    const handleOpenSimulation = () => {
+        if (stateRef.current.length !== MAX_BODIES) return;
+        setSimReport(null);
+        setShowSimSetup(true);
+    };
+
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', userSelect: 'none' }}>
+        <div style={{ position: 'relative', flex: 1, width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', userSelect: 'none' }}>
             <div
                 className="canvas-container"
                 ref={containerRef}
@@ -613,13 +783,33 @@ export function HolstCanvas() {
                         onClose={() => setMenu(null)}
                     />
                 )}
+                {showSimSetup && (
+                    <SimulationSetupMenu
+                        onStart={startTimedSimulation}
+                        onClose={() => setShowSimSetup(false)}
+                    />
+                )}
+                {simReport && (
+                    <SimulationReportModal
+                        report={simReport}
+                        onClose={() => setSimReport(null)}
+                    />
+                )}
             </div>
 
             <ControlPanel
                 isPanelCollapsed={isPanelCollapsed}
                 setIsPanelCollapsed={setIsPanelCollapsed}
                 running={running}
-                setRunning={setRunning}
+                setRunning={(nextRunning) => {
+                    if (!nextRunning && activeSimSessionRef.current) {
+                        const session = activeSimSessionRef.current;
+                        const status = classify(stateRef.current, gravityRef.current, 0);
+                        finishTimedSimulation(session, status === 'unknown' ? 'stable' : status);
+                        return;
+                    }
+                    setRunning(nextRunning);
+                }}
                 bodyCount={bodyCount}
                 maxBodies={MAX_BODIES}
                 outcome={outcome}
@@ -629,6 +819,12 @@ export function HolstCanvas() {
                 gravity={gravity}
                 setGravity={setGravity}
                 onReset={() => {
+                    if (activeSimSessionRef.current) {
+                        const session = activeSimSessionRef.current;
+                        activeSimSessionRef.current = null;
+                        stateRef.current = cloneBodies(session.savedState);
+                        setupRef.current = cloneBodies(session.savedSetup);
+                    }
                     setRunning(false);
                     stateRef.current = cloneBodies(setupRef.current);
                     trailsRef.current = stateRef.current.map(() => []);
@@ -638,10 +834,12 @@ export function HolstCanvas() {
                     syncTimeText();
                 }}
                 onClear={() => {
+                    activeSimSessionRef.current = null;
                     setRunning(false);
                     stateRef.current = [];
                     commitEdit();
                 }}
+                onOpenSimulation={handleOpenSimulation}
                 onPresetSelect={(p) => setNewBodies(p.bodies, p.g, p.dt)}
             />
         </div>

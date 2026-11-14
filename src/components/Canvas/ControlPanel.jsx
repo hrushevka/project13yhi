@@ -23,6 +23,7 @@ export function ControlPanel({
     setGravity,
     onReset,
     onClear,
+    onOpenSimulation,
     onPresetSelect,
 }) {
     const handleCustomSpeedChange = (e) => {
@@ -56,6 +57,13 @@ export function ControlPanel({
                             disabled={bodyCount !== maxBodies}
                         >
                             {running ? 'Пауза' : 'Запуск'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onOpenSimulation}
+                            disabled={bodyCount !== maxBodies}
+                        >
+                            Симуляция
                         </button>
                         <button type="button" onClick={onReset}>
                             Сброс
