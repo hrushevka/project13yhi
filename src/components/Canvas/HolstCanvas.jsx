@@ -6,12 +6,12 @@ import {
     toSimBodies,
     totalEnergy,
     recenterToCM,
-} from '../utils/physics';
-import { classify } from '../utils/classifier';
-import { PRESETS } from '../utils/presets';
+} from '../../utils/physics';
+import { classify } from '../../utils/classifier';
+import { BodyMenu } from './BodyMenu';
+import { ControlPanel } from './ControlPanel';
+import { bodyRadius, cloneBodies, formatSimTime, COLORS } from './utils';
 
-const MIN_SPEED = 1;
-const MAX_SPEED = 500;
 const MAX_BODIES = 3;
 const MAX_TRAIL_POINTS = 900;
 const TRAIL_SAMPLE_TIME = 0.01;
@@ -19,81 +19,6 @@ const GRID_STEP = 60;
 const MIN_ZOOM = 10;
 const MAX_ZOOM = 1000;
 const BASE_ZOOM = 120;
-const MIN_G = 0.1;
-const MAX_G = 5;
-const G_STEP = 0.1;
-const MIN_SOFTENING = 0;
-const MAX_SOFTENING = 1;
-const SOFTENING_STEP = 0.01;
-
-const OUTCOME_LABELS = {
-    collision: 'Столкновение',
-    ejection: 'Выброс',
-    stable: 'Стабильная орбита',
-    unknown: 'Анализ...',
-};
-
-const COLORS = ['#ff4d4d', '#4d6bfe', '#4dff88'];
-
-function bodyRadius(mass) {
-    return Math.max(6, Math.min(25, 6 + 5 * Math.cbrt(Math.max(mass, 0.0001))));
-}
-
-function cloneBodies(bodies) {
-    return bodies.map((b) => ({ ...b }));
-}
-
-function formatNumber(value) {
-    if (!Number.isFinite(value)) return '0';
-    return String(Number(value.toFixed(4)));
-}
-
-function formatSimTime(seconds) {
-    return `${seconds.toFixed(2)} с`;
-}
-
-function BodyMenu({ menu, onApply, onDelete, onClose }) {
-    const [drafts, setDrafts] = useState(() => ({
-        m: formatNumber(menu.body.m),
-        x: formatNumber(menu.body.x),
-        y: formatNumber(menu.body.y),
-        vx: formatNumber(menu.body.vx),
-        vy: formatNumber(menu.body.vy),
-    }));
-
-    const handleChange = (key, raw) => {
-        setDrafts((prev) => ({ ...prev, [key]: raw }));
-        const value = Number(raw.replace(',', '.'));
-        if (raw.trim() !== '' && Number.isFinite(value) && (key !== 'm' || value > 0)) {
-            onApply(menu.index, { [key]: value });
-        }
-    };
-
-    return (
-        <div 
-            className="body-menu" 
-            style={{ left: Math.min(menu.x, window.innerWidth - 260), top: Math.min(menu.y, window.innerHeight - 350) }} 
-            onPointerDown={(e) => e.stopPropagation()}
-        >
-            <div className="body-menu-header">
-                <span>Планета {menu.index + 1}</span>
-                <button onClick={onClose} style={{ padding: '0 8px', borderRadius: '50%', background: 'transparent', border: 'none' }}>X</button>
-            </div>
-            <div className="body-menu-grid">
-                {['m', 'x', 'y', 'vx', 'vy'].map((key) => (
-                    <div key={key} className="body-menu-field">
-                        <label>{key === 'm' ? 'Масса' : key === 'x' ? 'X' : key === 'y' ? 'Y' : key === 'vx' ? 'Скор. X' : 'Скор. Y'}</label>
-                        <input type="text" value={drafts[key]} onChange={(e) => handleChange(key, e.target.value)} />
-                    </div>
-                ))}
-            </div>
-            <div className="body-menu-actions">
-                <button onClick={() => onDelete(menu.index)} style={{ color: '#ff4d4d', borderColor: '#ff4d4d' }}>Удалить</button>
-                <button onClick={onClose} className="btn-primary">Готово</button>
-            </div>
-        </div>
-    );
-}
 
 export function HolstCanvas() {
     const containerRef = useRef(null);
@@ -544,20 +469,6 @@ export function HolstCanvas() {
         return Number.isFinite(e) ? e.toFixed(6) : '—';
     };
 
-    const handleSpeedChange = (e) => {
-        let val = parseInt(e.target.value, 10);
-        if (isNaN(val)) val = 1;
-        if (val < MIN_SPEED) val = MIN_SPEED;
-        if (val > MAX_SPEED) val = MAX_SPEED;
-        setSpeed(val);
-    };
-
-    const handleDtChange = (e) => {
-        let val = parseFloat(e.target.value);
-        if (isNaN(val) || val <= 0) val = 0.0001;
-        setDt(val);
-    };
-
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', userSelect: 'none' }}>
             <div className="canvas-container" 
@@ -579,99 +490,41 @@ export function HolstCanvas() {
                 )}
             </div>
 
-            <div className={`sim-panel-wrapper ${isPanelCollapsed ? 'collapsed' : ''}`}>
-                <div className="sim-panel">
-                    <div className="sim-panel-header" onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}>
-                        <div className="sim-panel-title">
-                            <span style={{ color: running ? '#4dff88' : '#888' }}>●</span> 
-                            Панель управления
-                        </div>
-                        <div className="sim-panel-toggle" style={{ transform: isPanelCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                            ▼
-                        </div>
-                    </div>
-
-                    <div className="sim-row">
-                        <button className="btn-primary" onClick={() => {
-                            if (bodyCount === MAX_BODIES) setRunning(!running);
-                        }} disabled={bodyCount !== MAX_BODIES}>
-                            {running ? 'Пауза' : 'Запуск'}
-                        </button>
-                        <button onClick={() => {
-                            setRunning(false);
-                            stateRef.current = cloneBodies(setupRef.current);
-                            trailsRef.current = stateRef.current.map(() => []);
-                            simTimeRef.current = 0;
-                            setOutcome('unknown');
-                            syncTimeText();
-                        }}>Сброс</button>
-                        <button onClick={() => {
-                            setRunning(false);
-                            stateRef.current = [];
-                            commitEdit();
-                        }}>Очистить</button>
-                        <button onClick={advanceOneStep} disabled={running || bodyCount !== MAX_BODIES}>Шаг</button>
-                        <button onClick={resetCamera}>Центр</button>
-
-                        <span className="sim-label" style={{ marginLeft: 'auto' }}>
-                            Исход: <b style={{ color: outcome === 'stable' ? '#4dff88' : outcome === 'collision' || outcome === 'ejection' ? '#ff4d4d' : '#fff' }}>
-                                {OUTCOME_LABELS[outcome]}
-                            </b>
-                        </span>
-                        <span className="sim-label">
-                            Время: <span className="sim-time" ref={timeTextRef}>0.00 с</span>
-                        </span>
-                    </div>
-
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Шагов за кадр:</span>
-                        <input 
-                            type="number" 
-                            min={MIN_SPEED} 
-                            max={MAX_SPEED} 
-                            value={speed} 
-                            onChange={handleSpeedChange} 
-                            style={{ width: '70px', padding: '4px 8px', background: '#2a2a2a', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }} 
-                        />
-                        
-                        <span className="sim-label" style={{ marginLeft: '20px' }}>dt (шаг физики):</span>
-                        <input 
-                            type="number" 
-                            step="0.00001"
-                            min="0.00001"
-                            value={dt} 
-                            onChange={handleDtChange} 
-                            style={{ width: '90px', padding: '4px 8px', background: '#2a2a2a', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }} 
-                        />
-                    </div>
-
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Гравитация (G):</span>
-                        <input type="range" min={MIN_G} max={MAX_G} step={G_STEP} value={gravity} onChange={(e) => setGravity(Number(e.target.value))} />
-                        <span className="sim-value">{gravity.toFixed(1)}</span>
-
-                        <span className="sim-label" style={{ marginLeft: '20px' }}>Сглаживание:</span>
-                        <input type="range" min={MIN_SOFTENING} max={MAX_SOFTENING} step={SOFTENING_STEP} value={softening} onChange={(e) => setSoftening(Number(e.target.value))} />
-                        <span className="sim-value">{softening.toFixed(2)}</span>
-                    </div>
-
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Энергия:</span>
-                        <span className="sim-value" style={{ minWidth: '100px' }}>{renderEnergy()}</span>
-                    </div>
-
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Пресеты:</span>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {PRESETS.map((p) => (
-                                <button key={p.name} onClick={() => setNewBodies(p.bodies, p.g, p.softening, p.dt)} style={{ fontSize: '12px', padding: '6px 12px' }}>
-                                    {p.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <ControlPanel
+                isPanelCollapsed={isPanelCollapsed}
+                setIsPanelCollapsed={setIsPanelCollapsed}
+                running={running}
+                setRunning={setRunning}
+                bodyCount={bodyCount}
+                maxBodies={MAX_BODIES}
+                outcome={outcome}
+                timeTextRef={timeTextRef}
+                speed={speed}
+                setSpeed={setSpeed}
+                dt={dt}
+                setDt={setDt}
+                gravity={gravity}
+                setGravity={setGravity}
+                softening={softening}
+                setSoftening={setSoftening}
+                onReset={() => {
+                    setRunning(false);
+                    stateRef.current = cloneBodies(setupRef.current);
+                    trailsRef.current = stateRef.current.map(() => []);
+                    simTimeRef.current = 0;
+                    setOutcome('unknown');
+                    syncTimeText();
+                }}
+                onClear={() => {
+                    setRunning(false);
+                    stateRef.current = [];
+                    commitEdit();
+                }}
+                onStep={advanceOneStep}
+                onCenter={resetCamera}
+                onPresetSelect={(p) => setNewBodies(p.bodies, p.g, p.softening, p.dt)}
+                renderEnergy={renderEnergy}
+            />
         </div>
     );
 }
