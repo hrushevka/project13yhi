@@ -33,8 +33,8 @@ export function App() {
     return (
         <div className="app-shell">
             <header className="top-navbar">
-                <div className="brand-title" style={{ cursor: 'pointer' }} onClick={() => navigate('canvas')}>
-                    Симулятор задачи трех тел
+                <div className="brand-title" onClick={() => navigate('canvas')}>
+                    Cosmos Lab
                 </div>
 
                 <div className="header-single-row">

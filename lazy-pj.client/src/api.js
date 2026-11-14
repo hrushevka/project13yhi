@@ -608,4 +608,74 @@ export const api = {
         }
         return null;
     },
+
+    async createPreset(presetData) {
+        try {
+            const response = await fetch('/api/presets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders(),
+                },
+                body: JSON.stringify({
+                    title: presetData.title,
+                    description: presetData.description || null,
+                    bodies: presetData.bodies.map((b) => ({
+                        mass: b.m,
+                        positionX: b.x,
+                        positionY: b.y,
+                        velocityX: b.vx,
+                        velocityY: b.vy,
+                    })),
+                    g: presetData.g ?? 1,
+                    softening: presetData.softening ?? 0.01,
+                    dt: presetData.dt ?? 0.001,
+                    outcome: presetData.outcome || null,
+                    previewImageBase64: presetData.previewImageBase64 || null,
+                }),
+            });
+            if (response.ok && isJsonResponse(response)) {
+                return normalizePresetDetail(await response.json());
+            }
+        } catch {
+            void 0;
+        }
+        return null;
+    },
+
+    async updatePreset(id, presetData) {
+        try {
+            const response = await fetch(`/api/presets/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders(),
+                },
+                body: JSON.stringify({
+                    title: presetData.title,
+                    description: presetData.description || null,
+                    bodies: presetData.bodies
+                        ? presetData.bodies.map((b) => ({
+                              mass: b.m,
+                              positionX: b.x,
+                              positionY: b.y,
+                              velocityX: b.vx,
+                              velocityY: b.vy,
+                          }))
+                        : null,
+                    g: presetData.g,
+                    softening: presetData.softening,
+                    dt: presetData.dt,
+                    outcome: presetData.outcome || null,
+                    previewImageBase64: presetData.previewImageBase64 || null,
+                }),
+            });
+            if (response.ok && isJsonResponse(response)) {
+                return normalizePresetDetail(await response.json());
+            }
+        } catch {
+            void 0;
+        }
+        return null;
+    },
 };
