@@ -1,0 +1,32 @@
+name: Deploy React App
+
+on:
+  push:
+    branches: [ master ] # При push в main запускается автоматически
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20 # Рекомендуется соответствовать локальной версии
+
+      - name: Install dependencies & Build
+        run: |
+          npm install
+          npm run build 
+      - name: Deploy to Server via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "dist/*" 
+          target: "/var/www/my-react-app"
+          strip_components: 1 # Убираем префикс dist/, чтобы файлы оказались непосредственно в целевом каталоге
+          overwrite: true
