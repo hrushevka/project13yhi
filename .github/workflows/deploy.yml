@@ -2,7 +2,7 @@ name: Deploy React App
 
 on:
   push:
-    branches: [ master ] # При push в main запускается автоматически
+    branches: [ master ] # При push в master запускается автоматически
 
 jobs:
   build-and-deploy:
@@ -27,6 +27,6 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           source: "dist/*" 
-          target: "/var/www/my-react-app"
+          target: "/var/www/react-project"
           strip_components: 1 # Убираем префикс dist/, чтобы файлы оказались непосредственно в целевом каталоге
           overwrite: true
