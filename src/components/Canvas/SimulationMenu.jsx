@@ -16,12 +16,12 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [hoverT, setHoverT] = useState(null);
 
-    const width = isExpanded ? 860 : 300;
-    const height = isExpanded ? 170 : 135;
-    const padL = 48;
-    const padR = 12;
+    const width = isExpanded ? 820 : 280;
+    const height = isExpanded ? 165 : 126;
+    const padL = 46;
+    const padR = 10;
     const padT = 10;
-    const padB = 20;
+    const padB = 18;
     const plotW = width - padL - padR;
     const plotH = height - padT - padB;
 
@@ -294,14 +294,32 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
 }
 
 export function SimulationSetupMenu({ onStart, onClose }) {
+    const modalRef = useRef(null);
     const [pos, setPos] = useState(() => ({
-        x: Math.max(10, Math.floor((window.innerWidth - 280) / 2)),
-        y: Math.max(60, Math.floor((window.innerHeight - 280) / 2)),
+        x: Math.max(8, Math.floor((window.innerWidth - 270) / 2)),
+        y: Math.max(54, Math.floor((window.innerHeight - 250) / 2)),
     }));
     const [targetTime, setTargetTime] = useState(10);
     const [expectedOutcome, setExpectedOutcome] = useState('stable');
 
     const dragOffsetRef = useRef(null);
+
+    useEffect(() => {
+        const clampToViewport = () => {
+            const el = modalRef.current;
+            const w = el ? el.offsetWidth : 270;
+            const h = el ? el.offsetHeight : 240;
+            const maxX = Math.max(8, window.innerWidth - w - 8);
+            const maxY = Math.max(54, window.innerHeight - h - 8);
+            setPos((prev) => ({
+                x: Math.max(8, Math.min(maxX, prev.x)),
+                y: Math.max(54, Math.min(maxY, prev.y)),
+            }));
+        };
+        clampToViewport();
+        window.addEventListener('resize', clampToViewport);
+        return () => window.removeEventListener('resize', clampToViewport);
+    }, []);
 
     const handlePointerDown = (e) => {
         e.stopPropagation();
@@ -316,8 +334,13 @@ export function SimulationSetupMenu({ onStart, onClose }) {
     const handlePointerMove = (e) => {
         if (!dragOffsetRef.current) return;
         e.stopPropagation();
-        const nextX = Math.max(10, Math.min(window.innerWidth - 290, e.clientX - dragOffsetRef.current.dx));
-        const nextY = Math.max(56, Math.min(window.innerHeight - 260, e.clientY - dragOffsetRef.current.dy));
+        const el = modalRef.current;
+        const w = el ? el.offsetWidth : 270;
+        const h = el ? el.offsetHeight : 240;
+        const maxX = Math.max(8, window.innerWidth - w - 8);
+        const maxY = Math.max(54, window.innerHeight - h - 8);
+        const nextX = Math.max(8, Math.min(maxX, e.clientX - dragOffsetRef.current.dx));
+        const nextY = Math.max(54, Math.min(maxY, e.clientY - dragOffsetRef.current.dy));
         setPos({ x: nextX, y: nextY });
     };
 
@@ -339,6 +362,7 @@ export function SimulationSetupMenu({ onStart, onClose }) {
 
     return (
         <div
+            ref={modalRef}
             className="body-menu sim-modal"
             style={{ left: pos.x, top: pos.y }}
             onPointerDown={handlePointerDown}
@@ -402,15 +426,32 @@ export function SimulationReportModal({ report, onClose }) {
     const [expandedIdx, setExpandedIdx] = useState(null);
 
     const [pos, setPos] = useState(() => {
-        const w = Math.min(920, window.innerWidth - 24);
-        const h = 390;
+        const w = Math.min(880, window.innerWidth - 16);
+        const h = 360;
         return {
-            x: Math.max(12, Math.floor((window.innerWidth - w) / 2)),
-            y: Math.max(58, Math.min(Math.max(58, window.innerHeight - h - 16), Math.floor((window.innerHeight - h) / 2))),
+            x: Math.max(8, Math.floor((window.innerWidth - w) / 2)),
+            y: Math.max(54, Math.min(Math.max(54, window.innerHeight - h - 12), Math.floor((window.innerHeight - h) / 2))),
         };
     });
 
     const dragOffsetRef = useRef(null);
+
+    useEffect(() => {
+        const clampToViewport = () => {
+            const el = modalRef.current;
+            const w = el ? el.offsetWidth : Math.min(880, window.innerWidth - 16);
+            const h = el ? el.offsetHeight : 360;
+            const maxX = Math.max(8, window.innerWidth - w - 8);
+            const maxY = Math.max(54, window.innerHeight - h - 8);
+            setPos((prev) => ({
+                x: Math.max(8, Math.min(maxX, prev.x)),
+                y: Math.max(54, Math.min(maxY, prev.y)),
+            }));
+        };
+        clampToViewport();
+        window.addEventListener('resize', clampToViewport);
+        return () => window.removeEventListener('resize', clampToViewport);
+    }, [expandedIdx]);
 
     const handlePointerDown = (e) => {
         e.stopPropagation();
@@ -426,12 +467,12 @@ export function SimulationReportModal({ report, onClose }) {
         if (!dragOffsetRef.current) return;
         e.stopPropagation();
         const el = modalRef.current;
-        const w = el ? el.offsetWidth : Math.min(920, window.innerWidth - 24);
-        const h = el ? el.offsetHeight : 380;
-        const maxX = Math.max(10, window.innerWidth - w - 10);
-        const maxY = Math.max(56, window.innerHeight - h - 10);
-        const nextX = Math.max(10, Math.min(maxX, e.clientX - dragOffsetRef.current.dx));
-        const nextY = Math.max(56, Math.min(maxY, e.clientY - dragOffsetRef.current.dy));
+        const w = el ? el.offsetWidth : Math.min(880, window.innerWidth - 16);
+        const h = el ? el.offsetHeight : 360;
+        const maxX = Math.max(8, window.innerWidth - w - 8);
+        const maxY = Math.max(54, window.innerHeight - h - 8);
+        const nextX = Math.max(8, Math.min(maxX, e.clientX - dragOffsetRef.current.dx));
+        const nextY = Math.max(54, Math.min(maxY, e.clientY - dragOffsetRef.current.dy));
         setPos({ x: nextX, y: nextY });
     };
 
