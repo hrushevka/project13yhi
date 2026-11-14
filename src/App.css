@@ -14,30 +14,17 @@
   --font-mono: 'Courier New', Courier, monospace;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-/* --- ГЛОБАЛЬНЫЙ ФОН, ЧТОБЫ НЕ БЫЛО БЕЛЫХ ПОЛОС --- */
-html, body, #root {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  background-color: var(--bg-base);
-  color: var(--text-main);
-  font-family: var(--font-ui);
-  font-size: 13px;
-}
-
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
   background-color: var(--bg-base);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 13px;
 }
 
-/* Верхняя панель */
 .top-navbar {
   position: absolute;
   top: 10px;
@@ -50,7 +37,7 @@ html, body, #root {
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
   z-index: 100;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .brand-title {
@@ -65,29 +52,27 @@ html, body, #root {
 
 .header-single-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
-/* Кнопки */
 button {
   background: var(--bg-input);
   color: var(--text-main);
   border: 1px solid var(--border-light);
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: 0;
   cursor: pointer;
   font-size: 12px;
   font-family: var(--font-ui);
-  transition: background 0.1s, border-color 0.1s;
 }
 
-button:hover:not(:disabled) {
+button:hover {
   background: var(--border-color);
   border-color: #555;
 }
 
-button:active:not(:disabled) {
+button:active {
   background: var(--bg-base);
 }
 
@@ -104,7 +89,7 @@ button:disabled {
   font-weight: 600;
 }
 
-.btn-primary:hover:not(:disabled) {
+.btn-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
@@ -114,19 +99,18 @@ button:disabled {
   border-color: #552222;
 }
 
-.btn-danger:hover:not(:disabled) {
+.btn-danger:hover {
   background: #331111;
   border-color: var(--danger);
 }
 
-/* Канвас */
 .canvas-container {
   position: absolute;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: #0a0a0a; /* Темный фон именно для холста */
+  background-color: #0a0a0a;
   overflow: hidden;
   z-index: 1;
   cursor: crosshair;
@@ -138,7 +122,6 @@ button:disabled {
   height: 100%;
 }
 
-/* Нижняя панель */
 .sim-panel-wrapper {
   position: absolute;
   bottom: 0;
@@ -148,125 +131,183 @@ button:disabled {
   display: flex;
   justify-content: center;
   padding: 0 10px;
-  transition: transform 0.2s ease;
-}
-
-.sim-panel-wrapper.collapsed {
-  transform: translateY(calc(100% - 35px));
+  pointer-events: none;
 }
 
 .sim-panel {
+  pointer-events: auto;
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
   border-bottom: none;
-  border-radius: 4px 4px 0 0;
-  padding: 12px 20px;
+  border-radius: 0;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  max-width: 960px;
-  position: relative;
+  max-width: 760px;
 }
 
-.sim-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--border-light);
-  border-radius: 4px 4px 0 0;
-}
-
-.sim-panel-header {
+.sim-panel-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 8px;
-  cursor: pointer;
-  user-select: none;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.sim-panel-title {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.sim-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.sim-panel-toggle {
-  color: var(--text-muted);
-  font-size: 10px;
-  transition: transform 0.2s ease;
+.sim-toggle-btn {
+  padding: 6px 10px;
+  min-width: 32px;
+}
+
+.sim-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
 }
 
 .sim-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+}
+
+.sim-presets,
+.sim-extra-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sim-extra-actions {
+  margin-left: auto;
 }
 
 .sim-label {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .sim-value {
   color: var(--text-main);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
   background: var(--bg-base);
-  padding: 2px 6px;
+  padding: 3px 6px;
   border: 1px solid var(--border-color);
-  border-radius: 3px;
-  min-width: 40px;
+  border-radius: 0;
+  min-width: 48px;
   text-align: right;
 }
 
 .sim-time {
   color: var(--accent);
   font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: bold;
+  font-size: 13px;
+  font-weight: 700;
+  margin-left: 6px;
 }
 
-/* --- ИСПРАВЛЕНИЕ БЕЛЫХ ИНПУТОВ --- */
-input[type="number"],
-input[type="text"],
-input[type="email"],
-input[type="password"] {
-  background: var(--bg-input);
+.sim-status {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.body-menu {
+  position: absolute;
+  background: var(--bg-panel);
   border: 1px solid var(--border-light);
+  border-radius: 0;
+  padding: 12px;
+  z-index: 200;
+  width: 240px;
   color: var(--text-main);
-  border-radius: 4px;
+}
+
+.body-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+.body-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.body-menu-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.body-menu-field label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.body-menu-field input {
+  width: 120px;
   padding: 4px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 0;
+  outline: none;
   font-family: var(--font-mono);
   font-size: 12px;
-  outline: none;
-  transition: border-color 0.1s;
 }
 
-input[type="number"]:focus,
-input[type="text"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus {
+.body-menu-field input:focus {
   border-color: var(--accent);
 }
 
-/* Слайдеры */
+.body-menu-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.page-container {
+  padding: 70px 20px 20px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+  z-index: 10;
+  position: relative;
+  height: 100vh;
+  overflow-y: auto;
+}
+
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
   cursor: pointer;
-  width: 120px;
+  width: 110px;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
@@ -289,214 +330,114 @@ input[type="range"]:focus {
   outline: none;
 }
 
-/* Меню тела */
-.body-menu {
-  position: absolute;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  padding: 12px;
-  z-index: 200;
-  width: 260px;
-  color: var(--text-main);
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
-}
-
-.body-menu-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 8px;
-}
-
-.body-menu-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-}
-
-.body-menu-field {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.body-menu-field label {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.body-menu-field input {
-  width: 120px;
-}
-
-.body-menu-actions {
-  margin-top: 12px;
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-/* Страницы (Кабинет, Админка, Авторизация) */
-.page-container {
-  padding: 80px 20px 20px;
-  max-width: 800px;
-  margin: 0 auto;
-  width: 100%;
-  z-index: 10;
-  position: relative;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-/* Дополнительные стили для карточек и таблиц */
-.glass-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 20px;
-  margin-bottom: 16px;
-}
-
-.profile-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.profile-identity {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.profile-avatar {
-  width: 48px;
-  height: 48px;
-  background: var(--accent);
-  color: #000;
-  font-weight: 700;
-  font-size: 18px;
+.auth-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  min-height: calc(100vh - 140px);
 }
 
-.profile-meta h1 {
-  margin: 0;
-  font-size: 18px;
-  color: #fff;
-}
-
-.profile-meta p {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.section-title {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  color: #fff;
-  font-weight: 600;
-}
-
-.form-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.alert-banner {
-  background: #331111;
-  border: 1px solid var(--danger);
-  color: #ffaaaa;
-  padding: 10px 16px;
-  border-radius: 4px;
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.data-table {
+.auth-card {
   width: 100%;
-  border-collapse: collapse;
-  margin-top: 12px;
-}
-
-.data-table th,
-.data-table td {
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 13px;
-}
-
-.data-table th {
-  color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 11px;
-}
-
-.data-table tr:hover td {
-  background: var(--bg-input);
-}
-
-.segmented-tabs {
-  display: flex;
-  background: var(--bg-base);
+  max-width: 320px;
+  background: var(--bg-panel);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 2px;
-  margin-bottom: 16px;
+  border-radius: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.segmented-tab {
-  flex: 1;
-  background: transparent;
-  border: none;
-  padding: 8px;
-  color: var(--text-muted);
-  font-size: 13px;
-  border-radius: 2px;
-}
-
-.segmented-tab.active {
-  background: var(--bg-input);
-  color: #fff;
-}
-
-.cabinet-grid {
+.auth-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-@media (max-width: 768px) {
-  .cabinet-grid {
-    grid-template-columns: 1fr;
-  }
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auth-field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.auth-field input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 0;
+  outline: none;
+  font-size: 13px;
+}
+
+.auth-field input:focus {
+  border-color: var(--accent);
+}
+
+.auth-error {
+  padding: 6px 8px;
+  background: #2a1212;
+  border: 1px solid var(--danger);
+  border-radius: 0;
+  color: #f87171;
+  font-size: 12px;
+}
+
+.auth-submit {
+  margin-top: 4px;
+  width: 100%;
+}
+
+
+.sim-input-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sim-value-input {
+  width: 60px;
+  padding: 3px 6px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+
+.sim-value-input:focus {
+  border-color: var(--accent);
+}
+
+.body-menu {
+  cursor: move;
+}
+
+.body-menu input,
+.body-menu button {
+  cursor: pointer;
+}
+
+.body-menu input {
+  cursor: text;
 }

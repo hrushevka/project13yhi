@@ -4,14 +4,14 @@ import {
     isStateFinite,
     stepBodiesInPlace,
     toSimBodies,
-    totalEnergy,
     recenterToCM,
 } from '../utils/physics';
 import { classify } from '../utils/classifier';
 import { PRESETS } from '../utils/presets';
 
-const MIN_SPEED = 1;
-const MAX_SPEED = 500;
+const MIN_SPEED = 0.1;
+const MAX_SPEED = 10;
+const SPEED_STEP = 0.1;
 const MAX_BODIES = 3;
 const MAX_TRAIL_POINTS = 900;
 const TRAIL_SAMPLE_TIME = 0.01;
@@ -22,18 +22,23 @@ const BASE_ZOOM = 120;
 const MIN_G = 0.1;
 const MAX_G = 5;
 const G_STEP = 0.1;
-const MIN_SOFTENING = 0;
-const MAX_SOFTENING = 1;
-const SOFTENING_STEP = 0.01;
+const VEL_SCALE = 0.6;
 
 const OUTCOME_LABELS = {
     collision: 'Столкновение',
     ejection: 'Выброс',
-    stable: 'Стабильная орбита',
-    unknown: 'Анализ...',
+    stable: 'Стабильно',
+    unknown: 'Пауза',
 };
 
 const COLORS = ['#ff4d4d', '#4d6bfe', '#4dff88'];
+
+const STARS = Array.from({ length: 120 }, (_, i) => ({
+    x: ((i * 73 + 19) % 997) / 997,
+    y: ((i * 151 + 43) % 991) / 991,
+    size: (i % 3) * 0.6 + 0.6,
+    alpha: ((i * 37) % 50) / 100 + 0.15,
+}));
 
 function bodyRadius(mass) {
     return Math.max(6, Math.min(25, 6 + 5 * Math.cbrt(Math.max(mass, 0.0001))));
@@ -52,6 +57,23 @@ function formatSimTime(seconds) {
     return `${seconds.toFixed(2)} с`;
 }
 
+function getVelocityHandleScreenPos(b, sx, sy, k, lineScale) {
+    const r = bodyRadius(b.m) * lineScale;
+    const tipX = sx + b.vx * VEL_SCALE * k;
+    const tipY = sy - b.vy * VEL_SCALE * k;
+    const len = Math.hypot(tipX - sx, tipY - sy);
+    if (len < r + 10 * lineScale) {
+        const angle = len > 1e-4 ? Math.atan2(tipY - sy, tipX - sx) : 0;
+        const dist = r + 14 * lineScale;
+        return {
+            x: sx + Math.cos(angle) * dist,
+            y: sy + Math.sin(angle) * dist,
+            isZero: len <= 1e-4,
+        };
+    }
+    return { x: tipX, y: tipY, isZero: false };
+}
+
 function BodyMenu({ menu, onApply, onDelete, onClose }) {
     const [drafts, setDrafts] = useState(() => ({
         m: formatNumber(menu.body.m),
@@ -61,6 +83,13 @@ function BodyMenu({ menu, onApply, onDelete, onClose }) {
         vy: formatNumber(menu.body.vy),
     }));
 
+    const [pos, setPos] = useState(() => ({
+        x: Math.max(10, Math.min(menu.x, window.innerWidth - 260)),
+        y: Math.max(60, Math.min(menu.y, window.innerHeight - 320)),
+    }));
+
+    const dragOffsetRef = useRef(null);
+
     const handleChange = (key, raw) => {
         setDrafts((prev) => ({ ...prev, [key]: raw }));
         const value = Number(raw.replace(',', '.'));
@@ -69,27 +98,75 @@ function BodyMenu({ menu, onApply, onDelete, onClose }) {
         }
     };
 
+    const handleMenuPointerDown = (e) => {
+        e.stopPropagation();
+        if (e.target.closest('input') || e.target.closest('button')) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        dragOffsetRef.current = {
+            dx: e.clientX - pos.x,
+            dy: e.clientY - pos.y,
+        };
+    };
+
+    const handleMenuPointerMove = (e) => {
+        if (!dragOffsetRef.current) return;
+        e.stopPropagation();
+        const nextX = Math.max(10, Math.min(window.innerWidth - 250, e.clientX - dragOffsetRef.current.dx));
+        const nextY = Math.max(10, Math.min(window.innerHeight - 280, e.clientY - dragOffsetRef.current.dy));
+        setPos({ x: nextX, y: nextY });
+    };
+
+    const handleMenuPointerUp = (e) => {
+        if (!dragOffsetRef.current) return;
+        e.stopPropagation();
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+        dragOffsetRef.current = null;
+    };
+
     return (
-        <div 
-            className="body-menu" 
-            style={{ left: Math.min(menu.x, window.innerWidth - 260), top: Math.min(menu.y, window.innerHeight - 350) }} 
-            onPointerDown={(e) => e.stopPropagation()}
+        <div
+            className="body-menu"
+            style={{ left: pos.x, top: pos.y }}
+            onPointerDown={handleMenuPointerDown}
+            onPointerMove={handleMenuPointerMove}
+            onPointerUp={handleMenuPointerUp}
+            onPointerCancel={handleMenuPointerUp}
         >
             <div className="body-menu-header">
-                <span>Планета {menu.index + 1}</span>
-                <button onClick={onClose} style={{ padding: '0 8px', borderRadius: '50%', background: 'transparent', border: 'none' }}>X</button>
+                <span>Тело {menu.index + 1}</span>
+                <button type="button" onClick={onClose}>X</button>
             </div>
             <div className="body-menu-grid">
                 {['m', 'x', 'y', 'vx', 'vy'].map((key) => (
                     <div key={key} className="body-menu-field">
-                        <label>{key === 'm' ? 'Масса' : key === 'x' ? 'X' : key === 'y' ? 'Y' : key === 'vx' ? 'Скор. X' : 'Скор. Y'}</label>
-                        <input type="text" value={drafts[key]} onChange={(e) => handleChange(key, e.target.value)} />
+                        <label>
+                            {key === 'm'
+                                ? 'Масса'
+                                : key === 'x'
+                                ? 'X'
+                                : key === 'y'
+                                ? 'Y'
+                                : key === 'vx'
+                                ? 'VX'
+                                : 'VY'}
+                        </label>
+                        <input
+                            type="text"
+                            value={drafts[key]}
+                            onChange={(e) => handleChange(key, e.target.value)}
+                        />
                     </div>
                 ))}
             </div>
             <div className="body-menu-actions">
-                <button onClick={() => onDelete(menu.index)} style={{ color: '#ff4d4d', borderColor: '#ff4d4d' }}>Удалить</button>
-                <button onClick={onClose} className="btn-primary">Готово</button>
+                <button type="button" className="btn-danger" onClick={() => onDelete(menu.index)}>
+                    Удалить
+                </button>
+                <button type="button" className="btn-primary" onClick={onClose}>
+                    Готово
+                </button>
             </div>
         </div>
     );
@@ -107,15 +184,12 @@ export function HolstCanvas() {
     const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
     const [gravity, setGravity] = useState(FALLBACK_PRESET.g ?? 1);
-    const [softening, setSoftening] = useState(FALLBACK_PRESET.softening ?? 0.01);
-    const [dt, setDt] = useState(FALLBACK_PRESET.dt || 0.0001);
 
     const timeTextRef = useRef(null);
     const runningRef = useRef(running);
     const speedRef = useRef(speed);
     const gravityRef = useRef(gravity);
-    const softeningRef = useRef(softening);
-    const dtRef = useRef(dt);
+    const dtRef = useRef(FALLBACK_PRESET.dt || 0.0001);
 
     const cameraRef = useRef({ x: 0, y: 0, zoom: BASE_ZOOM });
 
@@ -127,24 +201,10 @@ export function HolstCanvas() {
 
     const dragRef = useRef({ kind: 'none' });
     const selectedRef = useRef(null);
-    const starsRef = useRef([]);
-
-    if (starsRef.current.length === 0) {
-        for (let i = 0; i < 150; i++) {
-            starsRef.current.push({
-                x: Math.random(),
-                y: Math.random(),
-                size: Math.random() * 2,
-                alpha: Math.random() * 0.5 + 0.2
-            });
-        }
-    }
 
     useEffect(() => { runningRef.current = running; }, [running]);
     useEffect(() => { speedRef.current = speed; }, [speed]);
     useEffect(() => { gravityRef.current = gravity; }, [gravity]);
-    useEffect(() => { softeningRef.current = softening; }, [softening]);
-    useEffect(() => { dtRef.current = dt; }, [dt]);
     useEffect(() => { selectedRef.current = menu ? menu.index : null; }, [menu]);
 
     const syncTimeText = useCallback(() => {
@@ -154,7 +214,6 @@ export function HolstCanvas() {
     useEffect(() => { syncTimeText(); });
 
     const commitEdit = useCallback(() => {
-        recenterToCM(stateRef.current);
         trailsRef.current = stateRef.current.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
@@ -164,48 +223,21 @@ export function HolstCanvas() {
         setOutcome('unknown');
     }, [syncTimeText]);
 
-    const setNewBodies = useCallback((bodies, g, softeningValue, newDt) => {
+    const setNewBodies = useCallback((bodies, g, newDt) => {
         stateRef.current = cloneBodies(bodies);
         recenterToCM(stateRef.current);
         setupRef.current = cloneBodies(stateRef.current);
         trailsRef.current = bodies.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
-        const cleanDt = newDt > 0 ? newDt : 0.0001;
-        setDt(cleanDt);
-        dtRef.current = cleanDt;
+        dtRef.current = newDt > 0 ? newDt : 0.0001;
         setGravity(g);
-        setSoftening(softeningValue);
         gravityRef.current = g;
-        softeningRef.current = softeningValue;
         cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
         syncTimeText();
         setBodyCount(bodies.length);
         setOutcome('unknown');
         setRunning(false);
-    }, [syncTimeText]);
-
-    const advanceOneStep = useCallback(() => {
-        const state = stateRef.current;
-        if (state.length !== MAX_BODIES) return;
-        
-        const H = dtRef.current;
-        stepBodiesInPlace(state, gravityRef.current, softeningRef.current, H);
-        recenterToCM(state);
-        
-        simTimeRef.current += H;
-        trailClockRef.current += H;
-        
-        if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
-            trailClockRef.current = 0;
-            for (let i = 0; i < state.length; i++) {
-                const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
-                trail.push({ x: state[i].x, y: state[i].y });
-                if (trail.length > MAX_TRAIL_POINTS) trail.shift();
-            }
-        }
-        setOutcome(classify(state, gravityRef.current, softeningRef.current));
-        syncTimeText();
     }, [syncTimeText]);
 
     useEffect(() => {
@@ -240,14 +272,14 @@ export function HolstCanvas() {
             }
 
             const g = gravityRef.current;
-            const soft = softeningRef.current;
             const H = dtRef.current;
-            const stepCount = speedRef.current;
+            const currentSpeed = Math.max(0.01, Number(speedRef.current) || 0.1);
+            const stepCount = Math.max(1, Math.min(4000, Math.round((currentSpeed / 60) / H)));
 
             for (let s = 0; s < stepCount; s++) {
-                stepBodiesInPlace(state, g, soft, H);
+                stepBodiesInPlace(state, g, 0, H);
                 recenterToCM(state);
-                
+
                 simTimeRef.current += H;
                 trailClockRef.current += H;
 
@@ -267,7 +299,7 @@ export function HolstCanvas() {
                 return;
             }
 
-            setOutcome(classify(state, g, soft));
+            setOutcome(classify(state, g, 0));
             syncTimeText();
         };
 
@@ -281,7 +313,7 @@ export function HolstCanvas() {
 
             ctx.clearRect(0, 0, width, height);
 
-            starsRef.current.forEach(star => {
+            STARS.forEach((star) => {
                 ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
                 ctx.beginPath();
                 ctx.arc(star.x * width, star.y * height, star.size, 0, Math.PI * 2);
@@ -296,19 +328,23 @@ export function HolstCanvas() {
                 const startY = ((cy % gridStep) + gridStep) % gridStep;
                 ctx.beginPath();
                 for (let x = startX; x < width; x += gridStep) {
-                    ctx.moveTo(x, 0); ctx.lineTo(x, height);
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
                 }
                 for (let y = startY; y < height; y += gridStep) {
-                    ctx.moveTo(0, y); ctx.lineTo(width, y);
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
                 }
                 ctx.stroke();
             }
 
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(cx, 0); ctx.lineTo(cx, height);
-            ctx.moveTo(0, cy); ctx.lineTo(width, cy);
+            ctx.moveTo(cx, 0);
+            ctx.lineTo(cx, height);
+            ctx.moveTo(0, cy);
+            ctx.lineTo(width, cy);
             ctx.stroke();
 
             const lineScale = k / BASE_ZOOM;
@@ -335,26 +371,39 @@ export function HolstCanvas() {
                 const r = bodyRadius(b.m) * lineScale;
 
                 if (editing) {
-                    const tipX = sx + b.vx * 0.6 * k;
-                    const tipY = sy - b.vy * 0.6 * k;
-                    const len = Math.hypot(tipX - sx, tipY - sy);
-                    if (len > r + 4 * lineScale) {
-                        const angle = Math.atan2(tipY - sy, tipX - sx);
-                        const head = 8 * lineScale;
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.lineWidth = Math.max(1, 1 * lineScale);
-                        ctx.beginPath();
-                        ctx.moveTo(sx, sy);
-                        ctx.lineTo(tipX, tipY);
-                        ctx.stroke();
-                        ctx.beginPath();
-                        ctx.moveTo(tipX, tipY);
-                        ctx.lineTo(tipX - head * Math.cos(angle - Math.PI / 6), tipY - head * Math.sin(angle - Math.PI / 6));
-                        ctx.lineTo(tipX - head * Math.cos(angle + Math.PI / 6), tipY - head * Math.sin(angle + Math.PI / 6));
-                        ctx.closePath();
-                        ctx.fill();
-                    }
+                    const handle = getVelocityHandleScreenPos(b, sx, sy, k, lineScale);
+                    const angle = Math.atan2(handle.y - sy, handle.x - sx);
+                    const head = Math.max(6, 8 * lineScale);
+
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                    ctx.lineWidth = Math.max(1, 1.5 * lineScale);
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(handle.x, handle.y);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(handle.x, handle.y);
+                    ctx.lineTo(
+                        handle.x - head * Math.cos(angle - Math.PI / 6),
+                        handle.y - head * Math.sin(angle - Math.PI / 6)
+                    );
+                    ctx.lineTo(
+                        handle.x - head * Math.cos(angle + Math.PI / 6),
+                        handle.y - head * Math.sin(angle + Math.PI / 6)
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+
+                    const handleSize = Math.max(6, 7 * lineScale);
+                    ctx.fillStyle = '#d97706';
+                    ctx.fillRect(
+                        handle.x - handleSize / 2,
+                        handle.y - handleSize / 2,
+                        handleSize,
+                        handleSize
+                    );
                 }
 
                 ctx.fillStyle = COLORS[i % COLORS.length];
@@ -394,7 +443,7 @@ export function HolstCanvas() {
             const cam = cameraRef.current;
             const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
             const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.zoom * zoomFactor));
-            
+
             if (newZoom === cam.zoom) return;
 
             const worldX = (mouseX - rect.width / 2 - cam.x) / cam.zoom;
@@ -420,30 +469,44 @@ export function HolstCanvas() {
     };
 
     const toScreen = (b) => {
-        const width = canvasRef.current.getBoundingClientRect().width;
-        const height = canvasRef.current.getBoundingClientRect().height;
+        const rect = canvasRef.current.getBoundingClientRect();
         const k = cameraRef.current.zoom;
         return {
-            x: width / 2 + cameraRef.current.x + b.x * k,
-            y: height / 2 + cameraRef.current.y - b.y * k,
+            x: rect.width / 2 + cameraRef.current.x + b.x * k,
+            y: rect.height / 2 + cameraRef.current.y - b.y * k,
         };
     };
 
     const toWorld = (mousePos) => {
-        const width = canvasRef.current.getBoundingClientRect().width;
-        const height = canvasRef.current.getBoundingClientRect().height;
+        const rect = canvasRef.current.getBoundingClientRect();
         const k = cameraRef.current.zoom;
         return {
-            x: (mousePos.x - width / 2 - cameraRef.current.x) / k,
-            y: -(mousePos.y - height / 2 - cameraRef.current.y) / k,
+            x: (mousePos.x - rect.width / 2 - cameraRef.current.x) / k,
+            y: -(mousePos.y - rect.height / 2 - cameraRef.current.y) / k,
         };
+    };
+
+    const hitVelocityHandle = (mousePos) => {
+        const bodies = stateRef.current;
+        const k = cameraRef.current.zoom;
+        const lineScale = k / BASE_ZOOM;
+        for (let i = bodies.length - 1; i >= 0; i--) {
+            const p = toScreen(bodies[i]);
+            const handle = getVelocityHandleScreenPos(bodies[i], p.x, p.y, k, lineScale);
+            if (Math.hypot(mousePos.x - handle.x, mousePos.y - handle.y) <= 14) {
+                return i;
+            }
+        }
+        return null;
     };
 
     const hitBody = (mousePos) => {
         const bodies = stateRef.current;
+        const k = cameraRef.current.zoom;
+        const lineScale = k / BASE_ZOOM;
         for (let i = bodies.length - 1; i >= 0; i--) {
             const p = toScreen(bodies[i]);
-            const clickRadius = Math.max(bodyRadius(bodies[i].m) + 20, 30);
+            const clickRadius = Math.max(bodyRadius(bodies[i].m) * lineScale + 10, 18);
             if (Math.hypot(mousePos.x - p.x, mousePos.y - p.y) <= clickRadius) {
                 return i;
             }
@@ -452,31 +515,68 @@ export function HolstCanvas() {
     };
 
     const handlePointerDown = (e) => {
-        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.top-navbar')) return;
+        if (
+            e.target.closest('.body-menu') ||
+            e.target.closest('.sim-panel-wrapper') ||
+            e.target.closest('.top-navbar')
+        ) {
+            return;
+        }
         setMenu(null);
         e.currentTarget.setPointerCapture(e.pointerId);
 
         const mousePos = getMousePos(e);
 
         if (e.button === 1 || e.button === 2) {
-            dragRef.current = { kind: 'pan', startX: mousePos.x, startY: mousePos.y, camX: cameraRef.current.x, camY: cameraRef.current.y };
+            dragRef.current = {
+                kind: 'pan',
+                startX: mousePos.x,
+                startY: mousePos.y,
+                camX: cameraRef.current.x,
+                camY: cameraRef.current.y,
+            };
             return;
         }
 
         if (e.button === 0 && !runningRef.current) {
+            const velIndex = hitVelocityHandle(mousePos);
+            if (velIndex !== null) {
+                dragRef.current = { kind: 'velocity', index: velIndex };
+                return;
+            }
+
             const bodyIndex = hitBody(mousePos);
             if (bodyIndex !== null) {
                 const world = toWorld(mousePos);
                 const b = stateRef.current[bodyIndex];
-                dragRef.current = { kind: 'move', index: bodyIndex, dx: b.x - world.x, dy: b.y - world.y };
+                dragRef.current = {
+                    kind: 'move',
+                    index: bodyIndex,
+                    dx: b.x - world.x,
+                    dy: b.y - world.y,
+                };
                 return;
             }
+
             if (stateRef.current.length < MAX_BODIES) {
                 const world = toWorld(mousePos);
-                stateRef.current = [...stateRef.current, { m: 1, x: world.x, y: world.y, vx: 0, vy: 0 }];
+                const newIndex = stateRef.current.length;
+                stateRef.current = [
+                    ...stateRef.current,
+                    { m: 1, x: world.x, y: world.y, vx: 0, vy: 0 },
+                ];
                 commitEdit();
+                dragRef.current = { kind: 'velocity', index: newIndex };
                 return;
             }
+
+            dragRef.current = {
+                kind: 'pan',
+                startX: mousePos.x,
+                startY: mousePos.y,
+                camX: cameraRef.current.x,
+                camY: cameraRef.current.y,
+            };
         }
     };
 
@@ -495,19 +595,39 @@ export function HolstCanvas() {
                 if (i !== drag.index) return b;
                 return { ...b, x: world.x + drag.dx, y: world.y + drag.dy };
             });
+        } else if (drag.kind === 'velocity') {
+            const world = toWorld(mousePos);
+            stateRef.current = stateRef.current.map((b, i) => {
+                if (i !== drag.index) return b;
+                const vx = (world.x - b.x) / VEL_SCALE;
+                const vy = (world.y - b.y) / VEL_SCALE;
+                return {
+                    ...b,
+                    vx: Math.hypot(vx, vy) < 0.03 ? 0 : vx,
+                    vy: Math.hypot(vx, vy) < 0.03 ? 0 : vy,
+                };
+            });
         }
     };
 
     const handlePointerUp = (e) => {
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-        if (dragRef.current.kind === 'move') {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+        if (dragRef.current.kind === 'move' || dragRef.current.kind === 'velocity') {
             commitEdit();
         }
         dragRef.current = { kind: 'none' };
     };
 
     const handleDoubleClick = (e) => {
-        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.top-navbar')) return;
+        if (
+            e.target.closest('.body-menu') ||
+            e.target.closest('.sim-panel-wrapper') ||
+            e.target.closest('.top-navbar')
+        ) {
+            return;
+        }
         const mousePos = getMousePos(e);
         const index = hitBody(mousePos);
         if (index === null) return;
@@ -535,42 +655,46 @@ export function HolstCanvas() {
         setMenu(null);
     };
 
-    const resetCamera = () => {
-        cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
+    const handleCustomSpeedChange = (e) => {
+        const raw = e.target.value;
+        if (raw === '') {
+            setSpeed('');
+            return;
+        }
+        const num = Number(raw);
+        if (Number.isFinite(num) && num >= 0) {
+            setSpeed(num);
+        }
     };
 
-    const renderEnergy = () => {
-        const e = totalEnergy(stateRef.current, gravityRef.current, softeningRef.current);
-        return Number.isFinite(e) ? e.toFixed(6) : '—';
-    };
-
-    const handleSpeedChange = (e) => {
-        let val = parseInt(e.target.value, 10);
-        if (isNaN(val)) val = 1;
-        if (val < MIN_SPEED) val = MIN_SPEED;
-        if (val > MAX_SPEED) val = MAX_SPEED;
-        setSpeed(val);
-    };
-
-    const handleDtChange = (e) => {
-        let val = parseFloat(e.target.value);
-        if (isNaN(val) || val <= 0) val = 0.0001;
-        setDt(val);
+    const handleCustomGravityChange = (e) => {
+        const raw = e.target.value;
+        if (raw === '') {
+            setGravity('');
+            return;
+        }
+        const num = Number(raw);
+        if (Number.isFinite(num) && num >= 0) {
+            setGravity(num);
+        }
     };
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', userSelect: 'none' }}>
-            <div className="canvas-container" 
-                 ref={containerRef}
-                 onPointerDown={handlePointerDown}
-                 onPointerMove={handlePointerMove}
-                 onPointerUp={handlePointerUp}
-                 onPointerCancel={handlePointerUp}
-                 onDoubleClick={handleDoubleClick}
-                 onContextMenu={(e) => e.preventDefault()}>
+            <div
+                className="canvas-container"
+                ref={containerRef}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onDoubleClick={handleDoubleClick}
+                onContextMenu={(e) => e.preventDefault()}
+            >
                 <canvas ref={canvasRef} className="holst-sim-canvas" />
                 {menu && (
                     <BodyMenu
+                        key={menu.index}
                         menu={menu}
                         onApply={handleApplyBody}
                         onDelete={handleDeleteBody}
@@ -579,97 +703,118 @@ export function HolstCanvas() {
                 )}
             </div>
 
-            <div className={`sim-panel-wrapper ${isPanelCollapsed ? 'collapsed' : ''}`}>
+            <div className="sim-panel-wrapper">
                 <div className="sim-panel">
-                    <div className="sim-panel-header" onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}>
-                        <div className="sim-panel-title">
-                            <span style={{ color: running ? '#4dff88' : '#888' }}>●</span> 
-                            Панель управления
+                    <div className="sim-panel-top">
+                        <div className="sim-top-actions">
+                            <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={() => {
+                                    if (bodyCount === MAX_BODIES) setRunning(!running);
+                                }}
+                                disabled={bodyCount !== MAX_BODIES}
+                            >
+                                {running ? 'Пауза' : 'Запуск'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRunning(false);
+                                    stateRef.current = cloneBodies(setupRef.current);
+                                    trailsRef.current = stateRef.current.map(() => []);
+                                    simTimeRef.current = 0;
+                                    trailClockRef.current = 0;
+                                    setOutcome('unknown');
+                                    syncTimeText();
+                                }}
+                            >
+                                Сброс
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRunning(false);
+                                    stateRef.current = [];
+                                    commitEdit();
+                                }}
+                            >
+                                Очистить
+                            </button>
+                            <span className="sim-time" ref={timeTextRef}>0.00 с</span>
                         </div>
-                        <div className="sim-panel-toggle" style={{ transform: isPanelCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                            ▼
-                        </div>
-                    </div>
 
-                    <div className="sim-row">
-                        <button className="btn-primary" onClick={() => {
-                            if (bodyCount === MAX_BODIES) setRunning(!running);
-                        }} disabled={bodyCount !== MAX_BODIES}>
-                            {running ? 'Пауза' : 'Запуск'}
+                        <button
+                            type="button"
+                            className="sim-toggle-btn"
+                            onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+                        >
+                            {isPanelCollapsed ? '▲' : '▼'}
                         </button>
-                        <button onClick={() => {
-                            setRunning(false);
-                            stateRef.current = cloneBodies(setupRef.current);
-                            trailsRef.current = stateRef.current.map(() => []);
-                            simTimeRef.current = 0;
-                            setOutcome('unknown');
-                            syncTimeText();
-                        }}>Сброс</button>
-                        <button onClick={() => {
-                            setRunning(false);
-                            stateRef.current = [];
-                            commitEdit();
-                        }}>Очистить</button>
-                        <button onClick={advanceOneStep} disabled={running || bodyCount !== MAX_BODIES}>Шаг</button>
-                        <button onClick={resetCamera}>Центр</button>
-
-                        <span className="sim-label" style={{ marginLeft: 'auto' }}>
-                            Исход: <b style={{ color: outcome === 'stable' ? '#4dff88' : outcome === 'collision' || outcome === 'ejection' ? '#ff4d4d' : '#fff' }}>
-                                {OUTCOME_LABELS[outcome]}
-                            </b>
-                        </span>
-                        <span className="sim-label">
-                            Время: <span className="sim-time" ref={timeTextRef}>0.00 с</span>
-                        </span>
                     </div>
 
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Шагов за кадр:</span>
-                        <input 
-                            type="number" 
-                            min={MIN_SPEED} 
-                            max={MAX_SPEED} 
-                            value={speed} 
-                            onChange={handleSpeedChange} 
-                            style={{ width: '70px', padding: '4px 8px', background: '#2a2a2a', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }} 
-                        />
-                        
-                        <span className="sim-label" style={{ marginLeft: '20px' }}>dt (шаг физики):</span>
-                        <input 
-                            type="number" 
-                            step="0.00001"
-                            min="0.00001"
-                            value={dt} 
-                            onChange={handleDtChange} 
-                            style={{ width: '90px', padding: '4px 8px', background: '#2a2a2a', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }} 
-                        />
-                    </div>
+                    {!isPanelCollapsed && (
+                        <div className="sim-panel-body">
+                            <div className="sim-row">
+                                <span className="sim-label">Время:</span>
+                                <input
+                                    type="range"
+                                    min={MIN_SPEED}
+                                    max={MAX_SPEED}
+                                    step={SPEED_STEP}
+                                    value={Math.min(MAX_SPEED, Math.max(MIN_SPEED, Number(speed) || MIN_SPEED))}
+                                    onChange={(e) => setSpeed(Number(e.target.value))}
+                                />
+                                <div className="sim-input-unit">
+                                    <input
+                                        type="number"
+                                        step={SPEED_STEP}
+                                        min="0.01"
+                                        className="sim-value-input"
+                                        value={speed}
+                                        onChange={handleCustomSpeedChange}
+                                    />
+                                    <span>с</span>
+                                </div>
 
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Гравитация (G):</span>
-                        <input type="range" min={MIN_G} max={MAX_G} step={G_STEP} value={gravity} onChange={(e) => setGravity(Number(e.target.value))} />
-                        <span className="sim-value">{gravity.toFixed(1)}</span>
+                                <span className="sim-label">Гравитация:</span>
+                                <input
+                                    type="range"
+                                    min={MIN_G}
+                                    max={MAX_G}
+                                    step={G_STEP}
+                                    value={Math.min(MAX_G, Math.max(MIN_G, Number(gravity) || MIN_G))}
+                                    onChange={(e) => setGravity(Number(e.target.value))}
+                                />
+                                <input
+                                    type="number"
+                                    step={G_STEP}
+                                    min="0"
+                                    className="sim-value-input"
+                                    value={gravity}
+                                    onChange={handleCustomGravityChange}
+                                />
 
-                        <span className="sim-label" style={{ marginLeft: '20px' }}>Сглаживание:</span>
-                        <input type="range" min={MIN_SOFTENING} max={MAX_SOFTENING} step={SOFTENING_STEP} value={softening} onChange={(e) => setSoftening(Number(e.target.value))} />
-                        <span className="sim-value">{softening.toFixed(2)}</span>
-                    </div>
+                                <span className="sim-status">
+                                    {OUTCOME_LABELS[outcome]}
+                                </span>
+                            </div>
 
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Энергия:</span>
-                        <span className="sim-value" style={{ minWidth: '100px' }}>{renderEnergy()}</span>
-                    </div>
-
-                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Пресеты:</span>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {PRESETS.map((p) => (
-                                <button key={p.name} onClick={() => setNewBodies(p.bodies, p.g, p.softening, p.dt)} style={{ fontSize: '12px', padding: '6px 12px' }}>
-                                    {p.name}
-                                </button>
-                            ))}
+                            <div className="sim-row">
+                                <div className="sim-presets">
+                                    {PRESETS.map((p) => (
+                                        <button
+                                            key={p.name}
+                                            type="button"
+                                            onClick={() => setNewBodies(p.bodies, p.g, p.dt)}
+                                        >
+                                            {p.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 import { api } from './api';
-import { HolstCanvas } from './components/Canvas/HolstCanvas';
+import { HolstCanvas } from './components/HolstCanvas';
 import { AuthPage } from './pages/AuthPage';
 import { CabinetPage } from './pages/CabinetPage';
 import { AdminPage } from './pages/AdminPage';
