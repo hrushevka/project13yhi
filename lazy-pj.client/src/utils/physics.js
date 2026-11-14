@@ -64,36 +64,9 @@ function leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, dt) {
     }
 }
 
-export function minPairTimescale(state, G, softening) {
+export function stepBodiesInPlace(state, G, softening, dt) {
     const n = state.length;
-    if (n < 2 || G <= 0) return Infinity;
-    const eps2 = softening * softening;
-    let minTau = Infinity;
-    for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) {
-            const dx = state[j].x - state[i].x;
-            const dy = state[j].y - state[i].y;
-            const r2 = dx * dx + dy * dy + eps2;
-            const mSum = state[i].m + state[j].m;
-            if (mSum <= 0) continue;
-            const tau = Math.sqrt((r2 * Math.sqrt(r2)) / (G * mSum));
-            if (tau < minTau) minTau = tau;
-        }
-    }
-    return minTau;
-}
-
-export function computeEffectiveDt(state, G, softening, baseDt) {
-    const tau = minPairTimescale(state, G, softening);
-    if (!Number.isFinite(tau) || tau <= 0) return baseDt;
-    const safe = 0.04 * tau;
-    if (safe <= 0) return baseDt;
-    return Math.min(baseDt, safe);
-}
-
-export function stepBodiesInPlace(state, G, softening, dt, steps = 1) {
-    const n = state.length;
-    if (n === 0 || steps <= 0 || dt === 0) return;
+    if (n === 0 || dt === 0) return;
 
     const buf = ensureScratch(n);
     const { bx, by, bvx, bvy, bax, bay } = buf;
@@ -111,11 +84,9 @@ export function stepBodiesInPlace(state, G, softening, dt, steps = 1) {
 
     computeAccelerations(n, bx, by, masses, G, eps2, bax, bay);
 
-    for (let s = 0; s < steps; s++) {
-        leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W1 * dt);
-        leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W0 * dt);
-        leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W1 * dt);
-    }
+    leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W1 * dt);
+    leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W0 * dt);
+    leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W1 * dt);
 
     for (let i = 0; i < n; i++) {
         state[i].x = bx[i];
@@ -176,26 +147,25 @@ export function totalEnergy(state, G, softening) {
     return kinetic + potential;
 }
 
-export function runDeterministic(state, G, softening, baseDt, totalTime, sampleDt) {
-    const result = { samples: [], finalState: state.map((b) => ({ ...b })), finalTime: 0 };
-    let t = 0;
-    let nextSample = 0;
-    let local = state.map((b) => ({ ...b }));
-    let safety = 0;
-    while (t < totalTime - 1e-12 && safety < 10_000_000) {
-        const H = computeEffectiveDt(local, G, softening, baseDt);
-        if (t + H > nextSample - 1e-12) {
-            result.samples.push({
-                t: nextSample,
-                state: local.map((b) => ({ ...b })),
-            });
-            nextSample += sampleDt;
-        }
-        stepBodiesInPlace(local, G, softening, H, 1);
-        t += H;
-        safety++;
+export function recenterToCM(state) {
+    let totalMass = 0;
+    let cx = 0, cy = 0, vx = 0, vy = 0;
+    for (const b of state) {
+        totalMass += b.m;
+        cx += b.m * b.x;
+        cy += b.m * b.y;
+        vx += b.m * b.vx;
+        vy += b.m * b.vy;
     }
-    result.finalState = local;
-    result.finalTime = t;
-    return result;
+    if (totalMass === 0) return;
+    cx /= totalMass;
+    cy /= totalMass;
+    vx /= totalMass;
+    vy /= totalMass;
+    for (const b of state) {
+        b.x -= cx;
+        b.y -= cy;
+        b.vx -= vx;
+        b.vy -= vy;
+    }
 }

@@ -4,19 +4,17 @@ import {
     isStateFinite,
     stepBodiesInPlace,
     toSimBodies,
-    computeEffectiveDt,
     totalEnergy,
+    recenterToCM,
 } from '../utils/physics';
 import { classify } from '../utils/classifier';
 import { PRESETS } from '../utils/presets';
 
-const MIN_SPEED = 0.1;
-const MAX_SPEED = 5;
-const SPEED_STEP = 0.1;
+const MIN_SPEED = 1;
+const MAX_SPEED = 500;
 const MAX_BODIES = 3;
 const MAX_TRAIL_POINTS = 900;
 const TRAIL_SAMPLE_TIME = 0.01;
-const MAX_STEPS_PER_FRAME = 4000;
 const GRID_STEP = 60;
 const MIN_ZOOM = 10;
 const MAX_ZOOM = 1000;
@@ -27,8 +25,6 @@ const G_STEP = 0.1;
 const MIN_SOFTENING = 0;
 const MAX_SOFTENING = 1;
 const SOFTENING_STEP = 0.01;
-const BASE_DT = 0.0001;
-const TIME_STEP = 0.01;
 
 const OUTCOME_LABELS = {
     collision: 'Столкновение',
@@ -112,13 +108,14 @@ export function HolstCanvas() {
 
     const [gravity, setGravity] = useState(FALLBACK_PRESET.g ?? 1);
     const [softening, setSoftening] = useState(FALLBACK_PRESET.softening ?? 0.01);
+    const [dt, setDt] = useState(FALLBACK_PRESET.dt || 0.0001);
 
     const timeTextRef = useRef(null);
     const runningRef = useRef(running);
     const speedRef = useRef(speed);
     const gravityRef = useRef(gravity);
     const softeningRef = useRef(softening);
-    const dtRef = useRef(BASE_DT);
+    const dtRef = useRef(dt);
 
     const cameraRef = useRef({ x: 0, y: 0, zoom: BASE_ZOOM });
 
@@ -147,6 +144,7 @@ export function HolstCanvas() {
     useEffect(() => { speedRef.current = speed; }, [speed]);
     useEffect(() => { gravityRef.current = gravity; }, [gravity]);
     useEffect(() => { softeningRef.current = softening; }, [softening]);
+    useEffect(() => { dtRef.current = dt; }, [dt]);
     useEffect(() => { selectedRef.current = menu ? menu.index : null; }, [menu]);
 
     const syncTimeText = useCallback(() => {
@@ -156,6 +154,7 @@ export function HolstCanvas() {
     useEffect(() => { syncTimeText(); });
 
     const commitEdit = useCallback(() => {
+        recenterToCM(stateRef.current);
         trailsRef.current = stateRef.current.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
@@ -165,13 +164,16 @@ export function HolstCanvas() {
         setOutcome('unknown');
     }, [syncTimeText]);
 
-    const setNewBodies = useCallback((bodies, g, softeningValue, dt) => {
+    const setNewBodies = useCallback((bodies, g, softeningValue, newDt) => {
         stateRef.current = cloneBodies(bodies);
-        setupRef.current = cloneBodies(bodies);
+        recenterToCM(stateRef.current);
+        setupRef.current = cloneBodies(stateRef.current);
         trailsRef.current = bodies.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
-        dtRef.current = dt > 0 ? dt : BASE_DT;
+        const cleanDt = newDt > 0 ? newDt : 0.0001;
+        setDt(cleanDt);
+        dtRef.current = cleanDt;
         setGravity(g);
         setSoftening(softeningValue);
         gravityRef.current = g;
@@ -186,10 +188,14 @@ export function HolstCanvas() {
     const advanceOneStep = useCallback(() => {
         const state = stateRef.current;
         if (state.length !== MAX_BODIES) return;
-        const H = computeEffectiveDt(state, gravityRef.current, softeningRef.current, dtRef.current);
-        stepBodiesInPlace(state, gravityRef.current, softeningRef.current, H, 1);
+        
+        const H = dtRef.current;
+        stepBodiesInPlace(state, gravityRef.current, softeningRef.current, H);
+        recenterToCM(state);
+        
         simTimeRef.current += H;
         trailClockRef.current += H;
+        
         if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
             trailClockRef.current = 0;
             for (let i = 0; i < state.length; i++) {
@@ -209,7 +215,6 @@ export function HolstCanvas() {
         if (!ctx) return;
 
         let raf = 0;
-        let lastTime = performance.now();
         let cachedWidth = 0;
         let cachedHeight = 0;
 
@@ -225,9 +230,9 @@ export function HolstCanvas() {
         resize();
         window.addEventListener('resize', resize);
 
-        const step = (realDt) => {
+        const step = () => {
             const state = stateRef.current;
-            if (!runningRef.current || state.length !== MAX_BODIES || realDt <= 0) return;
+            if (!runningRef.current || state.length !== MAX_BODIES) return;
 
             for (let i = 0; i < state.length; i++) {
                 const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
@@ -236,17 +241,15 @@ export function HolstCanvas() {
 
             const g = gravityRef.current;
             const soft = softeningRef.current;
-            let budget = realDt * speedRef.current;
-            let steps = 0;
+            const H = dtRef.current;
+            const stepCount = speedRef.current;
 
-            while (budget > 0 && steps < MAX_STEPS_PER_FRAME) {
-                const H = computeEffectiveDt(state, g, soft, dtRef.current);
-                if (H <= 0) break;
-                stepBodiesInPlace(state, g, soft, H, 1);
-                budget -= H;
+            for (let s = 0; s < stepCount; s++) {
+                stepBodiesInPlace(state, g, soft, H);
+                recenterToCM(state);
+                
                 simTimeRef.current += H;
                 trailClockRef.current += H;
-                steps++;
 
                 if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
                     trailClockRef.current = 0;
@@ -308,7 +311,9 @@ export function HolstCanvas() {
             ctx.moveTo(0, cy); ctx.lineTo(width, cy);
             ctx.stroke();
 
-            ctx.lineWidth = 2;
+            const lineScale = k / BASE_ZOOM;
+
+            ctx.lineWidth = Math.max(1, 2 * lineScale);
             ctx.lineJoin = 'round';
             trailsRef.current.forEach((trail, i) => {
                 const body = stateRef.current[i];
@@ -327,18 +332,18 @@ export function HolstCanvas() {
             stateRef.current.forEach((b, i) => {
                 const sx = cx + b.x * k;
                 const sy = cy - b.y * k;
-                const r = bodyRadius(b.m);
+                const r = bodyRadius(b.m) * lineScale;
 
                 if (editing) {
                     const tipX = sx + b.vx * 0.6 * k;
                     const tipY = sy - b.vy * 0.6 * k;
                     const len = Math.hypot(tipX - sx, tipY - sy);
-                    if (len > r + 4) {
+                    if (len > r + 4 * lineScale) {
                         const angle = Math.atan2(tipY - sy, tipX - sx);
-                        const head = 8;
+                        const head = 8 * lineScale;
                         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
                         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.lineWidth = 1;
+                        ctx.lineWidth = Math.max(1, 1 * lineScale);
                         ctx.beginPath();
                         ctx.moveTo(sx, sy);
                         ctx.lineTo(tipX, tipY);
@@ -358,33 +363,54 @@ export function HolstCanvas() {
                 ctx.fill();
 
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-                ctx.lineWidth = 1;
+                ctx.lineWidth = Math.max(1, 1 * lineScale);
                 ctx.stroke();
 
                 if (selectedRef.current === i) {
                     ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([5, 5]);
+                    ctx.lineWidth = Math.max(1, 2 * lineScale);
+                    ctx.setLineDash([5 * lineScale, 5 * lineScale]);
                     ctx.beginPath();
-                    ctx.arc(sx, sy, r + 8, 0, Math.PI * 2);
+                    ctx.arc(sx, sy, r + 8 * lineScale, 0, Math.PI * 2);
                     ctx.stroke();
                     ctx.setLineDash([]);
                 }
             });
         };
 
-        const frame = (now) => {
-            const realDt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
-            lastTime = now;
-            step(realDt);
+        const frame = () => {
+            step();
             draw();
             raf = requestAnimationFrame(frame);
         };
 
         raf = requestAnimationFrame(frame);
+
+        const handleNativeWheel = (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const cam = cameraRef.current;
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.zoom * zoomFactor));
+            
+            if (newZoom === cam.zoom) return;
+
+            const worldX = (mouseX - rect.width / 2 - cam.x) / cam.zoom;
+            const worldY = -(mouseY - rect.height / 2 - cam.y) / cam.zoom;
+
+            cam.zoom = newZoom;
+            cam.x = mouseX - rect.width / 2 - worldX * newZoom;
+            cam.y = mouseY - rect.height / 2 + worldY * newZoom;
+        };
+
+        canvas.addEventListener('wheel', handleNativeWheel, { passive: false });
+
         return () => {
             cancelAnimationFrame(raf);
             window.removeEventListener('resize', resize);
+            canvas.removeEventListener('wheel', handleNativeWheel);
         };
     }, [syncTimeText]);
 
@@ -423,24 +449,6 @@ export function HolstCanvas() {
             }
         }
         return null;
-    };
-
-    const handleWheel = (e) => {
-        e.preventDefault();
-        const mousePos = getMousePos(e);
-        const cam = cameraRef.current;
-        const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.zoom * zoomFactor));
-        if (newZoom === cam.zoom) return;
-
-        const width = canvasRef.current.getBoundingClientRect().width;
-        const height = canvasRef.current.getBoundingClientRect().height;
-        const worldX = (mousePos.x - width / 2 - cam.x) / cam.zoom;
-        const worldY = -(mousePos.y - height / 2 - cam.y) / cam.zoom;
-
-        cam.zoom = newZoom;
-        cam.x = mousePos.x - width / 2 - worldX * newZoom;
-        cam.y = mousePos.y - height / 2 + worldY * newZoom;
     };
 
     const handlePointerDown = (e) => {
@@ -536,6 +544,20 @@ export function HolstCanvas() {
         return Number.isFinite(e) ? e.toFixed(6) : '—';
     };
 
+    const handleSpeedChange = (e) => {
+        let val = parseInt(e.target.value, 10);
+        if (isNaN(val)) val = 1;
+        if (val < MIN_SPEED) val = MIN_SPEED;
+        if (val > MAX_SPEED) val = MAX_SPEED;
+        setSpeed(val);
+    };
+
+    const handleDtChange = (e) => {
+        let val = parseFloat(e.target.value);
+        if (isNaN(val) || val <= 0) val = 0.0001;
+        setDt(val);
+    };
+
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', userSelect: 'none' }}>
             <div className="canvas-container" 
@@ -545,7 +567,6 @@ export function HolstCanvas() {
                  onPointerUp={handlePointerUp}
                  onPointerCancel={handlePointerUp}
                  onDoubleClick={handleDoubleClick}
-                 onWheel={handleWheel}
                  onContextMenu={(e) => e.preventDefault()}>
                 <canvas ref={canvasRef} className="holst-sim-canvas" />
                 {menu && (
@@ -603,9 +624,25 @@ export function HolstCanvas() {
                     </div>
 
                     <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
-                        <span className="sim-label">Скорость:</span>
-                        <input type="range" min={MIN_SPEED} max={MAX_SPEED} step={SPEED_STEP} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
-                        <span className="sim-value">{speed.toFixed(1)}x</span>
+                        <span className="sim-label">Шагов за кадр:</span>
+                        <input 
+                            type="number" 
+                            min={MIN_SPEED} 
+                            max={MAX_SPEED} 
+                            value={speed} 
+                            onChange={handleSpeedChange} 
+                            style={{ width: '70px', padding: '4px 8px', background: '#2a2a2a', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }} 
+                        />
+                        
+                        <span className="sim-label" style={{ marginLeft: '20px' }}>dt (шаг физики):</span>
+                        <input 
+                            type="number" 
+                            step="0.00001"
+                            min="0.00001"
+                            value={dt} 
+                            onChange={handleDtChange} 
+                            style={{ width: '90px', padding: '4px 8px', background: '#2a2a2a', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }} 
+                        />
                     </div>
 
                     <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
@@ -625,7 +662,7 @@ export function HolstCanvas() {
 
                     <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
                         <span className="sim-label">Пресеты:</span>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {PRESETS.map((p) => (
                                 <button key={p.name} onClick={() => setNewBodies(p.bodies, p.g, p.softening, p.dt)} style={{ fontSize: '12px', padding: '6px 12px' }}>
                                     {p.name}

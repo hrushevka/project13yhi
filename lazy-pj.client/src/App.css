@@ -1,90 +1,127 @@
+:root {
+  --bg-base: #121212;
+  --bg-panel: #1e1e1e;
+  --bg-input: #2a2a2a;
+  --border-color: #333333;
+  --border-light: #444444;
+  --text-main: #e0e0e0;
+  --text-muted: #888888;
+  --accent: #d97706; /* Строгий оранжевый вместо синего */
+  --accent-hover: #f59e0b;
+  --danger: #dc2626;
+  --danger-hover: #ef4444;
+  --font-ui: system-ui, -apple-system, sans-serif;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+
 .app-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background-color: #050508;
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 13px;
 }
 
+/* Верхняя панель - как панель инструментов */
 .top-navbar {
   position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 10px;
+  left: 10px;
+  right: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 25px;
-  background: #111115;
-  border: 1px solid #333;
-  border-radius: 8px;
+  padding: 8px 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
   z-index: 100;
-  width: max-content;
-  min-width: 450px;
-  gap: 30px;
+  border-radius: 4px;
 }
 
 .brand-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: #fff;
+  letter-spacing: 1px;
+  text-transform: uppercase;
   cursor: pointer;
+  user-select: none;
 }
 
 .header-single-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
+/* Кнопки - плоские и строгие */
 button {
-  background: #222;
-  color: #ddd;
-  border: 1px solid #444;
-  padding: 8px 16px;
-  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  padding: 6px 12px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  transition: background 0.1s, border-color 0.1s;
 }
 
 button:hover {
-  background: #333;
-  color: #fff;
+  background: var(--border-color);
+  border-color: #555;
 }
 
 button:active {
-  transform: scale(0.96);
+  background: var(--bg-base);
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .btn-primary {
-  background: #4d6bfe;
-  color: white;
-  border-color: #4d6bfe;
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 600;
 }
 
 .btn-primary:hover {
-  background: #3b56e5;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
+.btn-danger {
+  color: var(--danger);
+  border-color: #552222;
+}
+
+.btn-danger:hover {
+  background: #331111;
+  border-color: var(--danger);
+}
+
+/* Канвас */
 .canvas-container {
   position: absolute;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: #050508;
+  background-color: #0a0a0a;
   overflow: hidden;
   z-index: 1;
-  cursor: grab;
+  cursor: crosshair;
 }
 
 .canvas-container:active {
-  cursor: grabbing;
+  cursor: crosshair;
 }
 
 .holst-sim-canvas {
@@ -93,146 +130,136 @@ button:disabled {
   height: 100%;
 }
 
+/* Нижняя панель - инженерный пульт */
 .sim-panel-wrapper {
   position: absolute;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   z-index: 100;
   display: flex;
   justify-content: center;
-  width: 100%;
-  max-width: 900px;
+  padding: 0 10px;
   transition: transform 0.2s ease;
 }
 
 .sim-panel-wrapper.collapsed {
-  transform: translate(-50%, calc(100% - 45px));
+  transform: translateY(calc(100% - 35px));
 }
 
 .sim-panel {
-  background: #111115;
-  border: 1px solid #333;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
   border-bottom: none;
-  border-radius: 12px 12px 0 0;
-  padding: 15px 20px;
+  border-radius: 4px 4px 0 0;
+  padding: 12px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
+  max-width: 960px;
   position: relative;
 }
 
+/* Убираем "язычок", делаем строгую полосу */
 .sim-panel::before {
   content: '';
   position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 180px;
-  height: 18px;
-  background: #111115;
-  border: 1px solid #333;
-  border-bottom: none;
-  border-radius: 12px 12px 0 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--border-light);
+  border-radius: 4px 4px 0 0;
 }
 
 .sim-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #333;
-  padding-bottom: 10px;
-  padding-top: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
   cursor: pointer;
   user-select: none;
-  position: relative;
-  z-index: 1;
 }
 
 .sim-panel-title {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .sim-panel-toggle {
-  color: #888;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 10px;
   transition: transform 0.2s ease;
 }
 
 .sim-row {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .sim-label {
-  color: #aaa;
-  font-size: 13px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .sim-value {
-  color: #fff;
-  font-family: monospace;
-  font-size: 14px;
-  min-width: 45px;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg-base);
+  padding: 2px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  min-width: 40px;
+  text-align: right;
 }
 
 .sim-time {
-  color: #4d6bfe;
-  font-family: monospace;
-  font-size: 16px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 14px;
   font-weight: bold;
 }
 
+/* Меню тела */
 .body-menu {
   position: absolute;
-  background: #111115;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 15px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  padding: 12px;
   z-index: 200;
-  width: 250px;
-  color: #fff;
-}
-
-.body-menu::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90px;
-  height: 14px;
-  background: #111115;
-  border: 1px solid #333;
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
+  width: 260px;
+  color: var(--text-main);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .body-menu-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  font-weight: bold;
-  border-bottom: 1px solid #333;
-  padding-bottom: 10px;
-  padding-top: 8px;
-  position: relative;
-  z-index: 1;
+  margin-bottom: 12px;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
 }
 
 .body-menu-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 
 .body-menu-field {
@@ -242,154 +269,70 @@ button:disabled {
 }
 
 .body-menu-field label {
-  font-size: 13px;
-  color: #aaa;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .body-menu-field input {
-  width: 110px;
-  padding: 6px 10px;
-  background: #050508;
-  border: 1px solid #444;
-  color: #fff;
-  border-radius: 4px;
+  width: 120px;
+  padding: 4px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 2px;
   outline: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .body-menu-field input:focus {
-  border-color: #4d6bfe;
+  border-color: var(--accent);
 }
 
 .body-menu-actions {
-  margin-top: 15px;
+  margin-top: 12px;
   display: flex;
   gap: 8px;
   justify-content: flex-end;
 }
 
+/* Страницы */
 .page-container {
-  padding: 100px 20px 20px;
+  padding: 80px 20px 20px;
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
-  color: #fff;
   z-index: 10;
   position: relative;
   height: 100vh;
   overflow-y: auto;
 }
 
+/* Слайдеры */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
   cursor: pointer;
-  width: 150px;
+  width: 120px;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
-  background: #333;
-  border-radius: 2px;
+  background: var(--border-color);
+  border-radius: 0;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  height: 16px;
-  width: 16px;
-  border-radius: 50%;
-  background: #4d6bfe;
-  margin-top: -6px;
-}
-
-
-.auth-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 140px);
-}
-
-.auth-card {
-  position: relative;
-  width: 100%;
-  max-width: 340px;
-  background: #111115;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.auth-card::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 110px;
   height: 14px;
-  background: #111115;
-  border: 1px solid #333;
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
+  width: 14px;
+  border-radius: 0;
+  background: var(--accent);
+  margin-top: -5px;
+  border: 1px solid #000;
 }
 
-.auth-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding-top: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #333;
-  position: relative;
-  z-index: 1;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.auth-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.auth-field label {
-  font-size: 13px;
-  color: #aaa;
-}
-
-.auth-field input {
-  width: 100%;
-  padding: 8px 10px;
-  background: #050508;
-  border: 1px solid #444;
-  color: #fff;
-  border-radius: 4px;
+input[type="range"]:focus {
   outline: none;
-  font-size: 13px;
-}
-
-.auth-field input:focus {
-  border-color: #4d6bfe;
-}
-
-.auth-error {
-  padding: 8px 10px;
-  background: #1a1113;
-  border: 1px solid #5c262b;
-  border-radius: 4px;
-  color: #f87171;
-  font-size: 12px;
-}
-
-.auth-submit {
-  margin-top: 4px;
-  width: 100%;
 }
