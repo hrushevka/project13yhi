@@ -16,10 +16,9 @@ export const PRESETS = [
         softening: 0.001,
         dt: 0.0005,
         bodies: [
-            { m: 3, x: 0, y: 1, vx: -0.63034, vy: 0 },
-            { m: 1, x: 0, y: -0.83299, vx: 0.52507, vy: 0 },
-            // Исправлено: x был 1, заменен на 0, чтобы тела лежали на одной прямой
-            { m: 1, x: 0, y: -2.16700, vx: 1.36596, vy: 0 },
+            { m: 1, x: -1, y: 0, vx: 0, vy: -1.8027756 },
+            { m: 3, x: 0, y: 0, vx: 0, vy: 0 },
+            { m: 1, x: 1, y: 0, vx: 0, vy: 1.8027756 },
         ],
     },
     {
@@ -28,9 +27,9 @@ export const PRESETS = [
         softening: 0.001,
         dt: 0.0005,
         bodies: [
-            { m: 3, x: 0, y: 0, vx: 0, vy: 0.8385 },
-            { m: 1, x: 2, y: 0, vx: -0.4213, vy: 0.2528 },
-            { m: 1, x: 1, y: 1.73205, vx: 0.4213, vy: -0.7577 },
+            { m: 3, x: 0, y: 0, vx: 0, vy: 0 },
+            { m: 1, x: 1, y: 0, vx: 0, vy: -1.0886621 },
+            { m: 1, x: -0.5, y: 0.8660254, vx: -0.942809, vy: 0.544331 },
         ],
     },
     {
@@ -52,7 +51,7 @@ export function detectPreset(bodies, tolerance = 0.01) {
         const match = preset.bodies.every((pb, i) => {
             const b = bodies[i];
             return (
-                Math.abs(b.m - pb.m) < tolerance && // Добавлена проверка массы
+                Math.abs(b.m - pb.m) < tolerance &&
                 Math.abs(b.x - pb.x) < tolerance &&
                 Math.abs(b.y - pb.y) < tolerance &&
                 Math.abs(b.vx - pb.vx) < tolerance &&

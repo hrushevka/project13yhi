@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FALLBACK_PRESET, isStateFinite, minPairTimescale, stepBodiesInPlace, toSimBodies } from '../utils/physics';
+import {
+    FALLBACK_PRESET,
+    isStateFinite,
+    stepBodiesInPlace,
+    toSimBodies,
+    computeEffectiveDt,
+    totalEnergy,
+} from '../utils/physics';
 import { classify } from '../utils/classifier';
 import { PRESETS } from '../utils/presets';
 
@@ -9,7 +16,7 @@ const SPEED_STEP = 0.1;
 const MAX_BODIES = 3;
 const MAX_TRAIL_POINTS = 900;
 const TRAIL_SAMPLE_TIME = 0.01;
-const MAX_STEPS_PER_FRAME = 6000;
+const MAX_STEPS_PER_FRAME = 4000;
 const GRID_STEP = 60;
 const MIN_ZOOM = 10;
 const MAX_ZOOM = 1000;
@@ -20,6 +27,8 @@ const G_STEP = 0.1;
 const MIN_SOFTENING = 0;
 const MAX_SOFTENING = 1;
 const SOFTENING_STEP = 0.01;
+const BASE_DT = 0.0001;
+const TIME_STEP = 0.01;
 
 const OUTCOME_LABELS = {
     collision: 'Столкновение',
@@ -107,7 +116,9 @@ export function HolstCanvas() {
     const timeTextRef = useRef(null);
     const runningRef = useRef(running);
     const speedRef = useRef(speed);
-    const configRef = useRef({ g: gravity, softening, dt: 0.0001 });
+    const gravityRef = useRef(gravity);
+    const softeningRef = useRef(softening);
+    const dtRef = useRef(BASE_DT);
 
     const cameraRef = useRef({ x: 0, y: 0, zoom: BASE_ZOOM });
 
@@ -134,11 +145,9 @@ export function HolstCanvas() {
 
     useEffect(() => { runningRef.current = running; }, [running]);
     useEffect(() => { speedRef.current = speed; }, [speed]);
+    useEffect(() => { gravityRef.current = gravity; }, [gravity]);
+    useEffect(() => { softeningRef.current = softening; }, [softening]);
     useEffect(() => { selectedRef.current = menu ? menu.index : null; }, [menu]);
-
-    useEffect(() => {
-        configRef.current = { ...configRef.current, g: gravity, softening };
-    }, [gravity, softening]);
 
     const syncTimeText = useCallback(() => {
         if (timeTextRef.current) timeTextRef.current.textContent = formatSimTime(simTimeRef.current);
@@ -162,14 +171,35 @@ export function HolstCanvas() {
         trailsRef.current = bodies.map(() => []);
         simTimeRef.current = 0;
         trailClockRef.current = 0;
-        configRef.current = { g, softening: softeningValue, dt };
+        dtRef.current = dt > 0 ? dt : BASE_DT;
         setGravity(g);
         setSoftening(softeningValue);
+        gravityRef.current = g;
+        softeningRef.current = softeningValue;
         cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
         syncTimeText();
         setBodyCount(bodies.length);
         setOutcome('unknown');
         setRunning(false);
+    }, [syncTimeText]);
+
+    const advanceOneStep = useCallback(() => {
+        const state = stateRef.current;
+        if (state.length !== MAX_BODIES) return;
+        const H = computeEffectiveDt(state, gravityRef.current, softeningRef.current, dtRef.current);
+        stepBodiesInPlace(state, gravityRef.current, softeningRef.current, H, 1);
+        simTimeRef.current += H;
+        trailClockRef.current += H;
+        if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
+            trailClockRef.current = 0;
+            for (let i = 0; i < state.length; i++) {
+                const trail = trailsRef.current[i] || (trailsRef.current[i] = []);
+                trail.push({ x: state[i].x, y: state[i].y });
+                if (trail.length > MAX_TRAIL_POINTS) trail.shift();
+            }
+        }
+        setOutcome(classify(state, gravityRef.current, softeningRef.current));
+        syncTimeText();
     }, [syncTimeText]);
 
     useEffect(() => {
@@ -196,7 +226,6 @@ export function HolstCanvas() {
         window.addEventListener('resize', resize);
 
         const step = (realDt) => {
-            const cfg = configRef.current;
             const state = stateRef.current;
             if (!runningRef.current || state.length !== MAX_BODIES || realDt <= 0) return;
 
@@ -205,25 +234,19 @@ export function HolstCanvas() {
                 if (trail.length === 0) trail.push({ x: state[i].x, y: state[i].y });
             }
 
-            let remaining = realDt * speedRef.current;
-            const baseMaxDt = Math.max(0.00005, Math.min(cfg.dt > 0 ? cfg.dt : 0.001, 0.005));
-            let stepBudget = MAX_STEPS_PER_FRAME;
+            const g = gravityRef.current;
+            const soft = softeningRef.current;
+            let budget = realDt * speedRef.current;
+            let steps = 0;
 
-            while (remaining > 1e-12 && stepBudget > 0) {
-                const tillTrail = Math.max(1e-6, TRAIL_SAMPLE_TIME - trailClockRef.current);
-                const chunkDt = Math.min(remaining, tillTrail);
-                const minTau = minPairTimescale(state, cfg.g, cfg.softening);
-                const safeMaxDt = Math.min(baseMaxDt, Math.max(0.00001, 0.04 * minTau));
-                const neededSteps = Math.max(1, Math.ceil(chunkDt / safeMaxDt));
-                const subSteps = Math.min(stepBudget, neededSteps);
-                const stepDt = chunkDt / neededSteps;
-                const integratedDt = stepDt * subSteps;
-
-                stepBodiesInPlace(state, cfg.g, cfg.softening, stepDt, subSteps);
-                stepBudget -= subSteps;
-                remaining -= integratedDt;
-                simTimeRef.current += integratedDt;
-                trailClockRef.current += integratedDt;
+            while (budget > 0 && steps < MAX_STEPS_PER_FRAME) {
+                const H = computeEffectiveDt(state, g, soft, dtRef.current);
+                if (H <= 0) break;
+                stepBodiesInPlace(state, g, soft, H, 1);
+                budget -= H;
+                simTimeRef.current += H;
+                trailClockRef.current += H;
+                steps++;
 
                 if (trailClockRef.current >= TRAIL_SAMPLE_TIME - 1e-9) {
                     trailClockRef.current = 0;
@@ -241,7 +264,7 @@ export function HolstCanvas() {
                 return;
             }
 
-            setOutcome(classify(state, cfg.g, cfg.softening));
+            setOutcome(classify(state, g, soft));
             syncTimeText();
         };
 
@@ -508,6 +531,11 @@ export function HolstCanvas() {
         cameraRef.current = { x: 0, y: 0, zoom: BASE_ZOOM };
     };
 
+    const renderEnergy = () => {
+        const e = totalEnergy(stateRef.current, gravityRef.current, softeningRef.current);
+        return Number.isFinite(e) ? e.toFixed(6) : '—';
+    };
+
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', userSelect: 'none' }}>
             <div className="canvas-container" 
@@ -561,6 +589,7 @@ export function HolstCanvas() {
                             stateRef.current = [];
                             commitEdit();
                         }}>Очистить</button>
+                        <button onClick={advanceOneStep} disabled={running || bodyCount !== MAX_BODIES}>Шаг</button>
                         <button onClick={resetCamera}>Центр</button>
 
                         <span className="sim-label" style={{ marginLeft: 'auto' }}>
@@ -587,6 +616,11 @@ export function HolstCanvas() {
                         <span className="sim-label" style={{ marginLeft: '20px' }}>Сглаживание:</span>
                         <input type="range" min={MIN_SOFTENING} max={MAX_SOFTENING} step={SOFTENING_STEP} value={softening} onChange={(e) => setSoftening(Number(e.target.value))} />
                         <span className="sim-value">{softening.toFixed(2)}</span>
+                    </div>
+
+                    <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
+                        <span className="sim-label">Энергия:</span>
+                        <span className="sim-value" style={{ minWidth: '100px' }}>{renderEnergy()}</span>
                     </div>
 
                     <div className="sim-row" style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>

@@ -46,6 +46,24 @@ function computeAccelerations(n, px, py, pm, G, eps2, ax, ay) {
     }
 }
 
+const YOSHIDA_W1 = 1 / (2 - Math.cbrt(2));
+const YOSHIDA_W0 = -Math.cbrt(2) / (2 - Math.cbrt(2));
+
+function leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, dt) {
+    const halfDt = 0.5 * dt;
+    for (let i = 0; i < n; i++) {
+        bvx[i] += bax[i] * halfDt;
+        bvy[i] += bay[i] * halfDt;
+        bx[i] += bvx[i] * dt;
+        by[i] += bvy[i] * dt;
+    }
+    computeAccelerations(n, bx, by, masses, G, eps2, bax, bay);
+    for (let i = 0; i < n; i++) {
+        bvx[i] += bax[i] * halfDt;
+        bvy[i] += bay[i] * halfDt;
+    }
+}
+
 export function minPairTimescale(state, G, softening) {
     const n = state.length;
     if (n < 2 || G <= 0) return Infinity;
@@ -65,6 +83,14 @@ export function minPairTimescale(state, G, softening) {
     return minTau;
 }
 
+export function computeEffectiveDt(state, G, softening, baseDt) {
+    const tau = minPairTimescale(state, G, softening);
+    if (!Number.isFinite(tau) || tau <= 0) return baseDt;
+    const safe = 0.04 * tau;
+    if (safe <= 0) return baseDt;
+    return Math.min(baseDt, safe);
+}
+
 export function stepBodiesInPlace(state, G, softening, dt, steps = 1) {
     const n = state.length;
     if (n === 0 || steps <= 0 || dt === 0) return;
@@ -80,24 +106,15 @@ export function stepBodiesInPlace(state, G, softening, dt, steps = 1) {
     }
 
     const eps2 = softening * softening;
+    const masses = new Float64Array(n);
+    for (let i = 0; i < n; i++) masses[i] = state[i].m;
 
-    computeAccelerations(n, bx, by, state.map(b => b.m), G, eps2, bax, bay);
+    computeAccelerations(n, bx, by, masses, G, eps2, bax, bay);
 
     for (let s = 0; s < steps; s++) {
-        for (let i = 0; i < n; i++) {
-            bx[i] += bvx[i] * dt + 0.5 * bax[i] * dt * dt;
-            by[i] += bvy[i] * dt + 0.5 * bay[i] * dt * dt;
-            bvx[i] += 0.5 * bax[i] * dt;
-            bvy[i] += 0.5 * bay[i] * dt;
-        }
-
-        const masses = state.map(b => b.m);
-        computeAccelerations(n, bx, by, masses, G, eps2, bax, bay);
-
-        for (let i = 0; i < n; i++) {
-            bvx[i] += 0.5 * bax[i] * dt;
-            bvy[i] += 0.5 * bay[i] * dt;
-        }
+        leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W1 * dt);
+        leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W0 * dt);
+        leapfrogStep(n, bx, by, bvx, bvy, bax, bay, masses, G, eps2, YOSHIDA_W1 * dt);
     }
 
     for (let i = 0; i < n; i++) {
@@ -140,4 +157,45 @@ export function isStateFinite(state) {
     return state.every(
         (b) => Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy)
     );
+}
+
+export function totalEnergy(state, G, softening) {
+    let kinetic = 0;
+    let potential = 0;
+    const eps2 = softening * softening;
+    for (let i = 0; i < state.length; i++) {
+        const b = state[i];
+        kinetic += 0.5 * b.m * (b.vx * b.vx + b.vy * b.vy);
+        for (let j = i + 1; j < state.length; j++) {
+            const dx = state[j].x - b.x;
+            const dy = state[j].y - b.y;
+            const r = Math.sqrt(dx * dx + dy * dy + eps2);
+            potential -= (G * b.m * state[j].m) / r;
+        }
+    }
+    return kinetic + potential;
+}
+
+export function runDeterministic(state, G, softening, baseDt, totalTime, sampleDt) {
+    const result = { samples: [], finalState: state.map((b) => ({ ...b })), finalTime: 0 };
+    let t = 0;
+    let nextSample = 0;
+    let local = state.map((b) => ({ ...b }));
+    let safety = 0;
+    while (t < totalTime - 1e-12 && safety < 10_000_000) {
+        const H = computeEffectiveDt(local, G, softening, baseDt);
+        if (t + H > nextSample - 1e-12) {
+            result.samples.push({
+                t: nextSample,
+                state: local.map((b) => ({ ...b })),
+            });
+            nextSample += sampleDt;
+        }
+        stepBodiesInPlace(local, G, softening, H, 1);
+        t += H;
+        safety++;
+    }
+    result.finalState = local;
+    result.finalTime = t;
+    return result;
 }
