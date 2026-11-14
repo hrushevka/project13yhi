@@ -5,6 +5,7 @@ function fmt(v, digits = 3) {
     if (!Number.isFinite(v)) return '—';
     return Number(v.toFixed(digits)).toString();
 }
+
 function fmtTime(t) {
     if (t === null || t === undefined) return '—';
     return `${t.toFixed(2)} с`;
@@ -17,7 +18,7 @@ export function FinalReport({ stats, outcome, onClose }) {
             <div className="report-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="report-header">
                     <h2>Отчёт симуляции</h2>
-                    <button onClick={onClose}>✕</button>
+                    <button type="button" onClick={onClose} aria-label="Закрыть отчёт">✕</button>
                 </div>
                 <div className="report-body">
                     <div className="report-block">
@@ -53,13 +54,13 @@ export function FinalReport({ stats, outcome, onClose }) {
                         <div className="report-row"><span>Средняя</span><b>{fmt(s.avgSpeed)}</b></div>
                         <div className="report-row"><span>Максимальная</span><b>{fmt(s.maxSpeed)}</b></div>
                     </div>
-                    <div className="report-block">
+                    <div className="report-block report-block-wide">
                         <h3>Энергия</h3>
                         <div className="report-row"><span>Начальная</span><b>{fmt(s.initialEnergy, 5)}</b></div>
                         <div className="report-row"><span>Конечная</span><b>{fmt(s.energy, 5)}</b></div>
                         <div className="report-row">
                             <span>Дрейф</span>
-                            <b style={{ color: Math.abs(s.energyDrift) > 0.1 ? '#ff4d4d' : '#4dff88' }}>
+                            <b className={Math.abs(s.energyDrift) > 0.1 ? 'drift-warn' : 'drift-ok'}>
                                 {fmt(s.energyDrift, 5)}
                             </b>
                         </div>

@@ -36,11 +36,11 @@ function DistanceChart({ history, height = 80 }) {
 
     return (
         <svg className="stats-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-            <path d={areaPath} fill="rgba(77, 107, 254, 0.15)" stroke="none" />
-            <path d={avgPath} fill="none" stroke="#4d6bfe" strokeWidth="1.5" />
-            <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#333" strokeWidth="0.5" />
-            <text x={pad + 2} y={pad + 8} fill="#666" fontSize="8">max {fmt(maxV, 2)}</text>
-            <text x={pad + 2} y={height - pad - 2} fill="#666" fontSize="8">min {fmt(minV, 2)}</text>
+            <path d={areaPath} fill="var(--accent-soft)" fillOpacity="0.65" stroke="none" />
+            <path d={avgPath} fill="none" stroke="var(--accent)" strokeWidth="1.6" />
+            <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="var(--border)" strokeWidth="0.75" />
+            <text x={pad + 2} y={pad + 8} fill="var(--text-muted)" fontSize="8">max {fmt(maxV, 2)}</text>
+            <text x={pad + 2} y={height - pad - 2} fill="var(--text-muted)" fontSize="8">min {fmt(minV, 2)}</text>
         </svg>
     );
 }
@@ -51,7 +51,7 @@ export function StatsPanel({ stats, final = false, onClose }) {
         <div className="stats-panel">
             <div className="stats-title">
                 <span>{final ? 'Итоговый отчёт' : 'Аналитика'}</span>
-                {onClose && <button className="stats-close" aria-label="Скрыть аналитику" onClick={onClose}>×</button>}
+                {onClose && <button type="button" className="stats-close" aria-label="Скрыть аналитику" onClick={onClose}>×</button>}
             </div>
 
             <div className="stats-section">
@@ -95,7 +95,7 @@ export function StatsPanel({ stats, final = false, onClose }) {
                 <div className="stats-row"><span>Текущая</span><b>{fmt(s.energy, 4)}</b></div>
                 <div className="stats-row">
                     <span>Дрейф</span>
-                    <b style={{ color: Math.abs(s.energyDrift) > 0.1 ? '#ff4d4d' : '#4dff88' }}>
+                    <b className={Math.abs(s.energyDrift) > 0.1 ? 'drift-warn' : 'drift-ok'}>
                         {fmt(s.energyDrift, 4)}
                     </b>
                 </div>

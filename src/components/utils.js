@@ -1,4 +1,4 @@
-export const COLORS = ['#ff8276', '#73cfff', '#b7a1ff'];
+export const COLORS = ['#E39A7B', '#FDD7A6', '#8FB3C9'];
 
 export const OUTCOME_LABELS = {
     collision: 'Столкновение',

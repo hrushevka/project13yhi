@@ -1,6 +1,6 @@
 @font-face {
   font-family: '129 Kosmos';
-  src: url('/fonts/Kosmos1219.ttf') format('truetype'), url('/fonts/Kosmos129.ttf') format('truetype'), local('129 Kosmos'), local('Kosmos129');
+  src: url('/fonts/Kosmos1219.ttf') format('truetype'), local('129 Kosmos'), local('Kosmos129');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -8,7 +8,7 @@
 
 @font-face {
   font-family: 'KB Zero';
-  src: local('KB Zero'), local('KBZero'), url('/fonts/KBZero.woff2') format('woff2'), url('/fonts/KBZero.woff') format('woff'), url('/fonts/KBZero.otf') format('opentype'), url('/fonts/KBZero.ttf') format('truetype');
+  src: local('KB Zero'), local('KBZero');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -34,6 +34,8 @@
 
   --danger-bg: #554246;
   --danger-text: #FDD7A6;
+  --status-ok: #8FB3C9;
+  --status-warn: #E39A7B;
 
   --grid-dot: #1F2C38;
   --origin-color: #2D4456;
@@ -83,6 +85,8 @@
 
   --danger-bg: #554246;
   --danger-text: #FDD7A6;
+  --status-ok: #2D4456;
+  --status-warn: #9E5740;
 
   --grid-dot: #E2D7C4;
   --origin-color: #CDBFA8;

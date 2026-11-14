@@ -1,25 +1,16 @@
-
-﻿import './App.css';
-import { HolstCanvas } from './components/HolstCanvas';
-
-export function App() {
-    return <main className="app-shell"><HolstCanvas /></main>;
-
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import './App.css';
-import { api } from './api';
-import { HolstCanvas } from './components/Canvas/HolstCanvas';
-import { AuthPage } from './pages/AuthPage';
-import { CabinetPage } from './pages/CabinetPage';
-import { AdminPage } from './pages/AdminPage';
+import { HolstCanvas } from './components/HolstCanvas';
+import { OrbitCatalog } from './components/OrbitCatalog';
+import { PRESETS } from './utils/presets';
 
-const THEME_STORAGE_KEY = 'lazypj_theme_v1';
+const THEME_STORAGE_KEY = 'cosmos-lab-theme';
 
 function getInitialTheme() {
     try {
-        const stored = localStorage.getItem(THEME_STORAGE_KEY);
-        if (stored === 'light' || stored === 'dark') {
-            return stored;
+        const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+        if (saved === 'light' || saved === 'dark') {
+            return saved;
         }
     } catch {
         return 'dark';
@@ -27,88 +18,50 @@ function getInitialTheme() {
     return 'dark';
 }
 
-function maskEmail(email) {
-    const clean = (email || '').trim();
-    const atIndex = clean.indexOf('@');
-    if (atIndex <= 0) {
-        return clean;
-    }
-    const local = clean.slice(0, atIndex);
-    const domain = clean.slice(atIndex);
-    const visibleCount = local.length <= 2 ? 1 : Math.min(3, local.length - 1);
-    return `${local.slice(0, visibleCount)}•••${domain}`;
-}
-
-function resolveHashView(session) {
-    const hash = window.location.hash.replace('#/', '').replace('#', '');
-    if (hash === 'admin' && session?.user.role === 'Admin') {
-        return 'admin';
-    }
-    if (hash === 'cabinet' && session) {
-        return 'cabinet';
-    }
-    if (hash === 'login' || hash === 'register' || hash === 'auth') {
-        return 'auth';
-    }
-    return 'canvas';
-}
-
 export function App() {
-    const [session, setSession] = useState(() => api.getSession());
-    const [view, setView] = useState(() => resolveHashView(api.getSession()));
-    const [authMode, setAuthMode] = useState('login');
-    const [theme, setTheme] = useState(() => getInitialTheme());
+    const [theme, setTheme] = useState(getInitialTheme);
+    const [canvasSession, setCanvasSession] = useState(0);
+    const [catalogOpen, setCatalogOpen] = useState(false);
+    const [activePreset, setActivePreset] = useState(PRESETS[0]);
+    const [presetCommand, setPresetCommand] = useState({ preset: null, nonce: 0 });
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         try {
-            localStorage.setItem(THEME_STORAGE_KEY, theme);
+            window.localStorage.setItem(THEME_STORAGE_KEY, theme);
         } catch {
-            void 0;
+            return undefined;
         }
+        return undefined;
     }, [theme]);
-
-    useEffect(() => {
-        const onHashChange = () => {
-            setView(resolveHashView(session));
-        };
-        window.addEventListener('hashchange', onHashChange);
-        return () => window.removeEventListener('hashchange', onHashChange);
-    }, [session]);
-
-    const navigate = (target) => {
-        window.location.hash = target === 'canvas' ? '#/' : `#/${target}`;
-        setView(target);
-    };
-
-    const openAuth = (mode) => {
-        setAuthMode(mode);
-        window.location.hash = `#/${mode}`;
-        setView('auth');
-    };
-
-    const handleAuthSuccess = (newSession) => {
-        setSession(newSession);
-        navigate(newSession.user.role === 'Admin' ? 'admin' : 'cabinet');
-    };
-
-    const handleLogout = () => {
-        api.saveSession(null);
-        setSession(null);
-        navigate('canvas');
-    };
 
     const toggleTheme = () => {
         setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
     };
 
+    const handleHome = () => {
+        setCatalogOpen(false);
+        setPresetCommand({ preset: null, nonce: 0 });
+        setActivePreset(PRESETS[0]);
+        setCanvasSession((prev) => prev + 1);
+    };
+
+    const handleReload = () => {
+        window.location.reload();
+    };
+
+    const handleSelectPreset = (preset) => {
+        setPresetCommand((prev) => ({ preset, nonce: prev.nonce + 1 }));
+    };
+
     return (
-        <div className="app-shell">
+        <main className="app-shell">
             <header className="top-navbar">
                 <button
                     type="button"
                     className="brand-cluster"
-                    onClick={() => navigate('canvas')}
+                    onClick={handleHome}
+                    aria-label="Cosmos lab — домой"
                 >
                     <span className="brand-title">Cosmos lab</span>
                 </button>
@@ -116,102 +69,136 @@ export function App() {
                 <div className="header-single-row">
                     <button
                         type="button"
-                        className="nav-pill"
-                        onClick={() => navigate('canvas')}
+                        className={`nav-pill nav-pill-catalog ${catalogOpen ? 'active' : ''}`}
+                        onClick={() => setCatalogOpen((prev) => !prev)}
+                        aria-expanded={catalogOpen}
+                        aria-label="Каталог орбит"
+                        title="Каталог орбит"
                     >
-                        Че-то придумаем.
-                    </button>
-                    <button
-                        type="button"
-                        className="nav-pill"
-                        onClick={() => navigate('canvas')}
-                    >
-                        Че-то придумаем.
+                        <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.9"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <circle cx="12" cy="12" r="3" />
+                            <ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-24 12 12)" />
+                        </svg>
+                        <span>Каталог</span>
+                        <span className="count-badge">{PRESETS.length}</span>
                     </button>
 
-                    {!session ? (
-                        <>
-                            <button
-                                type="button"
-                                className={`nav-pill ${
-                                    view === 'auth' && authMode === 'login' ? 'active' : ''
-                                }`}
-                                onClick={() => openAuth('login')}
-                            >
-                                Войти
-                            </button>
-                            <button
-                                type="button"
-                                className={`account-pill-btn ${
-                                    view === 'auth' && authMode === 'register' ? 'active' : ''
-                                }`}
-                                onClick={() => openAuth('register')}
-                            >
-                                Зарегистрироваться
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            type="button"
-                            className={`account-pill-btn ${
-                                view === 'cabinet' || view === 'admin' ? 'active' : ''
-                            }`}
-                            onClick={() => navigate('cabinet')}
-                            title="Личный кабинет"
+                    <button
+                        type="button"
+                        className="nav-pill nav-pill-home"
+                        onClick={handleHome}
+                        aria-label="Домой"
+                        title="Домой"
+                    >
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.9"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
                         >
-                            {maskEmail(session.user.email)}
-                        </button>
-                    )}
+                            <path d="M3 10.5 12 3l9 7.5" />
+                            <path d="M5.5 9.5V21h13V9.5" />
+                        </svg>
+                        <span className="nav-pill-label">Домой</span>
+                    </button>
 
                     <button
                         type="button"
                         className="theme-icon-btn"
                         onClick={toggleTheme}
-                        title={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
                         aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+                        title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
                     >
                         {theme === 'dark' ? (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="5" />
-                                <line x1="12" y1="1" x2="12" y2="3" />
-                                <line x1="12" y1="21" x2="12" y2="23" />
-                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                                <line x1="1" y1="12" x2="3" y2="12" />
-                                <line x1="21" y1="12" x2="23" y2="12" />
-                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                            <svg
+                                width="17"
+                                height="17"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.9"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="12" r="4.5" />
+                                <path d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77" />
                             </svg>
                         ) : (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                            <svg
+                                width="17"
+                                height="17"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.9"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z" />
                             </svg>
                         )}
+                    </button>
+
+                    <button
+                        type="button"
+                        className="theme-icon-btn"
+                        onClick={handleReload}
+                        aria-label="Перезагрузить"
+                        title="Перезагрузить"
+                    >
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.9"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                            <path d="M21 3v6h-6" />
+                        </svg>
                     </button>
                 </div>
             </header>
 
-            {view === 'canvas' ? (
-                <HolstCanvas />
-            ) : (
-                <main className="page-container">
-                    {view === 'auth' || !session ? (
-                        <AuthPage key={authMode} initialMode={authMode} onSuccess={handleAuthSuccess} />
-                    ) : view === 'admin' && session.user.role === 'Admin' ? (
-                        <AdminPage />
-                    ) : (
-                        <CabinetPage
-                            session={session}
-                            onSessionUpdate={(updated) => setSession(updated)}
-                            onOpenAdmin={session.user.role === 'Admin' ? () => navigate('admin') : undefined}
-                            onLogout={handleLogout}
-                        />
-                    )}
-                </main>
+            {catalogOpen && (
+                <OrbitCatalog
+                    activePreset={activePreset}
+                    onSelect={handleSelectPreset}
+                    onClose={() => setCatalogOpen(false)}
+                />
             )}
-        </div>
-    );
 
+            <div className="workspace-stage">
+                <HolstCanvas
+                    key={canvasSession}
+                    theme={theme}
+                    presetCommand={presetCommand}
+                    onActivePresetChange={setActivePreset}
+                />
+            </div>
+        </main>
+    );
 }
 
 export default App;
