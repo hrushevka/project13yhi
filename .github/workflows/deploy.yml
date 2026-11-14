@@ -2,7 +2,7 @@ name: Deploy React App
 
 on:
   push:
-    branches: [ main ] # При push в main запускается автоматически
+    branches: [ master ] # При push в main запускается автоматически
 
 jobs:
   build-and-deploy:
