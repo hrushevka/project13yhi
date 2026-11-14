@@ -1,8 +1,15 @@
 export function translateErrorMessage(raw) {
-    if (!raw) return 'Попробуйте позже';
+    if (!raw) {
+        return 'Попробуйте позже';
+    }
+
     const message = raw instanceof Error ? raw.message : String(raw);
     const trimmed = message.trim();
-    if (!trimmed) return 'Попробуйте позже';
+
+    if (!trimmed) {
+        return 'Попробуйте позже';
+    }
+
     const lower = trimmed.toLowerCase();
 
     if (
@@ -53,7 +60,9 @@ export function translateErrorMessage(raw) {
     }
 
     const hasCyrillic = /[а-яёА-ЯЁ]/.test(trimmed);
-    if (hasCyrillic) return trimmed;
+    if (hasCyrillic) {
+        return trimmed;
+    }
 
     return 'Попробуйте позже';
 }
@@ -61,39 +70,63 @@ export function translateErrorMessage(raw) {
 export const validators = {
     validateEmail(email) {
         const value = email.trim();
-        if (!value) return 'Пожалуйста, укажите адрес электронной почты';
+        if (!value) {
+            return 'Пожалуйста, укажите адрес электронной почты';
+        }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-        if (!emailRegex.test(value)) return 'Введите корректный Email (например, name@domain.ru)';
+        if (!emailRegex.test(value)) {
+            return 'Введите корректный Email (например, name@domain.ru)';
+        }
         return null;
     },
 
     validatePassword(password, minLength = 4) {
-        if (!password || !password.trim()) return 'Пожалуйста, введите пароль';
-        if (password.trim().length < minLength) return `Пароль должен содержать не менее ${minLength} символов`;
+        if (!password || !password.trim()) {
+            return 'Пожалуйста, введите пароль';
+        }
+        if (password.trim().length < minLength) {
+            return `Пароль должен содержать не менее ${minLength} символов`;
+        }
         return null;
     },
 
     validateName(name) {
         const value = name.trim();
-        if (!value) return 'Пожалуйста, укажите ваше имя';
-        if (value.length < 2) return 'Имя должно содержать не менее 2 символов';
-        if (value.length > 60) return 'Имя не должно превышать 60 символов';
+        if (!value) {
+            return 'Пожалуйста, укажите ваше имя';
+        }
+        if (value.length < 2) {
+            return 'Имя должно содержать не менее 2 символов';
+        }
+        if (value.length > 60) {
+            return 'Имя не должно превышать 60 символов';
+        }
         return null;
     },
 
     validateDescription(description) {
         const value = description.trim();
-        if (!value) return 'Опишите суть вашей заявки перед отправкой';
-        if (value.length < 10) return 'Описание заявки слишком короткое (минимум 10 символов)';
-        if (value.length > 1000) return 'Описание заявки не должно превышать 1000 символов';
+        if (!value) {
+            return 'Опишите суть вашей заявки перед отправкой';
+        }
+        if (value.length < 10) {
+            return 'Описание заявки слишком короткое (минимум 10 символов)';
+        }
+        if (value.length > 1000) {
+            return 'Описание заявки не должно превышать 1000 символов';
+        }
         return null;
     },
 
     validateId(idInput) {
         const value = idInput.trim();
-        if (!value) return 'Укажите числовой ID пользователя для проверки';
+        if (!value) {
+            return 'Укажите числовой ID пользователя для проверки';
+        }
         const parsed = Number(value);
-        if (!Number.isInteger(parsed) || parsed <= 0) return 'ID должен быть положительным целым числом';
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+            return 'ID должен быть положительным целым числом';
+        }
         return null;
     },
 };

@@ -1,4 +1,4 @@
-const MIN_DIST = 0.15;
+const MIN_DIST = 0.05;
 const ESCAPE_DIST = 50;
 
 export function totalEnergy(bodies, G, softening) {
@@ -19,26 +19,8 @@ export function totalEnergy(bodies, G, softening) {
     return kinetic + potential;
 }
 
-/**
- * Исход по текущему состоянию.
- * @param {Array} bodies
- * @param {number} G
- * @param {number} softening
- * @param {boolean} hasCollided — было ли слияние/распад за сессию
- */
-export function classify(bodies, G, softening, hasCollided = false) {
-    if (bodies.length === 0) return 'unknown';
-
-    if (hasCollided) {
-        if (bodies.length === 1) return 'collision';
-        const energy = totalEnergy(bodies, G, softening);
-        for (const b of bodies) {
-            if (Math.hypot(b.x, b.y) > ESCAPE_DIST && energy > 0) return 'ejection';
-        }
-        return 'collision';
-    }
-
-    if (bodies.length === 1) return 'unknown';
+export function classify(bodies, G, softening) {
+    if (bodies.length < 3) return 'unknown';
 
     for (let i = 0; i < bodies.length; i++) {
         for (let j = i + 1; j < bodies.length; j++) {

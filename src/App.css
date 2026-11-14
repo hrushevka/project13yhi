@@ -236,6 +236,7 @@ button:disabled {
   z-index: 200;
   width: 240px;
   color: var(--text-main);
+  cursor: move;
 }
 
 .body-menu-header {
@@ -278,6 +279,7 @@ button:disabled {
   outline: none;
   font-family: var(--font-mono);
   font-size: 12px;
+  cursor: text;
 }
 
 .body-menu-field input:focus {
@@ -289,6 +291,10 @@ button:disabled {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
+}
+
+.body-menu button {
+  cursor: pointer;
 }
 
 .page-container {
@@ -426,17 +432,4 @@ input[type="range"]:focus {
 
 .sim-value-input:focus {
   border-color: var(--accent);
-}
-
-.body-menu {
-  cursor: move;
-}
-
-.body-menu input,
-.body-menu button {
-  cursor: pointer;
-}
-
-.body-menu input {
-  cursor: text;
 }

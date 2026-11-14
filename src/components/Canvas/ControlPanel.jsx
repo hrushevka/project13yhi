@@ -1,14 +1,12 @@
-import { OUTCOME_LABELS } from './utils';
+import { OUTCOME_LABELS, roundFloat, toFloat } from './utils';
 import { PRESETS } from '../../utils/presets';
 
-const MIN_SPEED = 1;
-const MAX_SPEED = 500;
+const MIN_SPEED = 0.1;
+const MAX_SPEED = 10;
+const SPEED_STEP = 0.1;
 const MIN_G = 0.1;
 const MAX_G = 5;
 const G_STEP = 0.1;
-const MIN_SOFTENING = 0;
-const MAX_SOFTENING = 1;
-const SOFTENING_STEP = 0.01;
 
 export function ControlPanel({
     isPanelCollapsed,
@@ -21,114 +19,124 @@ export function ControlPanel({
     timeTextRef,
     speed,
     setSpeed,
-    dt,
-    setDt,
     gravity,
     setGravity,
-    softening,
-    setSoftening,
     onReset,
     onClear,
-    onStep,
-    onCenter,
     onPresetSelect,
-    renderEnergy,
 }) {
-    const handleSpeedChange = (e) => {
-        let val = parseInt(e.target.value, 10);
-        if (isNaN(val)) val = 1;
-        if (val < MIN_SPEED) val = MIN_SPEED;
-        if (val > MAX_SPEED) val = MAX_SPEED;
-        setSpeed(val);
+    const handleCustomSpeedChange = (e) => {
+        const num = parseFloat(e.target.value);
+        if (Number.isFinite(num) && num > 0) {
+            setSpeed(roundFloat(num, 3));
+        }
     };
 
-    const handleDtChange = (e) => {
-        let val = parseFloat(e.target.value);
-        if (isNaN(val) || val <= 0) val = 0.0001;
-        setDt(val);
+    const handleCustomGravityChange = (e) => {
+        const num = parseFloat(e.target.value);
+        if (Number.isFinite(num) && num >= 0) {
+            setGravity(roundFloat(num, 3));
+        }
     };
+
+    const numericSpeed = toFloat(speed, 1);
+    const numericGravity = toFloat(gravity, 1);
 
     return (
-        <div className={`sim-panel-wrapper ${isPanelCollapsed ? 'collapsed' : ''}`}>
+        <div className="sim-panel-wrapper">
             <div className="sim-panel">
-                <div className="sim-panel-header" onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}>
-                    <div className="sim-panel-title">
-                        <span style={{ color: running ? '#4dff88' : '#888' }}>●</span> 
-                        Панель управления
+                <div className="sim-panel-top">
+                    <div className="sim-top-actions">
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => {
+                                if (bodyCount === maxBodies) setRunning(!running);
+                            }}
+                            disabled={bodyCount !== maxBodies}
+                        >
+                            {running ? 'Пауза' : 'Запуск'}
+                        </button>
+                        <button type="button" onClick={onReset}>
+                            Сброс
+                        </button>
+                        <button type="button" onClick={onClear}>
+                            Очистить
+                        </button>
+                        <span className="sim-time" ref={timeTextRef}>0.00 с</span>
                     </div>
-                    <div className="sim-panel-toggle" style={{ transform: isPanelCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                        ▼
-                    </div>
-                </div>
 
-                <div className="sim-row">
-                    <button className="btn-primary" onClick={() => {
-                        if (bodyCount === maxBodies) setRunning(!running);
-                    }} disabled={bodyCount !== maxBodies}>
-                        {running ? 'Пауза' : 'Запуск'}
+                    <button
+                        type="button"
+                        className="sim-toggle-btn"
+                        onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+                    >
+                        {isPanelCollapsed ? '▲' : '▼'}
                     </button>
-                    <button onClick={onReset}>Сброс</button>
-                    <button onClick={onClear}>Очистить</button>
-                    <button onClick={onStep} disabled={running || bodyCount !== maxBodies}>Шаг</button>
-                    <button onClick={onCenter}>Центр</button>
-
-                    <span className="sim-label" style={{ marginLeft: 'auto' }}>
-                        Исход: <b style={{ color: outcome === 'stable' ? '#4dff88' : outcome === 'collision' || outcome === 'ejection' ? '#ff4d4d' : '#fff' }}>
-                            {OUTCOME_LABELS[outcome]}
-                        </b>
-                    </span>
-                    <span className="sim-label">
-                        Время: <span className="sim-time" ref={timeTextRef}>0.00 с</span>
-                    </span>
                 </div>
 
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Шагов за кадр:</span>
-                    <input 
-                        type="number" 
-                        min={MIN_SPEED} 
-                        max={MAX_SPEED} 
-                        value={speed} 
-                        onChange={handleSpeedChange} 
-                        style={{ width: '70px' }} 
-                    />
-                    
-                    <span className="sim-label" style={{ marginLeft: '20px' }}>dt (шаг физики):</span>
-                    <input 
-                        type="number" 
-                        step="0.00001"
-                        min="0.00001"
-                        value={dt} 
-                        onChange={handleDtChange} 
-                        style={{ width: '90px' }} 
-                    />
-                </div>
+                {!isPanelCollapsed && (
+                    <div className="sim-panel-body">
+                        <div className="sim-row">
+                            <span className="sim-label">Время:</span>
+                            <input
+                                type="range"
+                                min={MIN_SPEED}
+                                max={MAX_SPEED}
+                                step={SPEED_STEP}
+                                value={Math.min(MAX_SPEED, Math.max(MIN_SPEED, numericSpeed))}
+                                onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                            />
+                            <div className="sim-input-unit">
+                                <input
+                                    type="number"
+                                    step={SPEED_STEP}
+                                    min="0.01"
+                                    className="sim-value-input"
+                                    value={numericSpeed}
+                                    onChange={handleCustomSpeedChange}
+                                />
+                                <span>с</span>
+                            </div>
 
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Гравитация (G):</span>
-                    <input type="range" min={MIN_G} max={MAX_G} step={G_STEP} value={gravity} onChange={(e) => setGravity(Number(e.target.value))} />
-                    <span className="sim-value">{gravity.toFixed(1)}</span>
+                            <span className="sim-label">Гравитация:</span>
+                            <input
+                                type="range"
+                                min={MIN_G}
+                                max={MAX_G}
+                                step={G_STEP}
+                                value={Math.min(MAX_G, Math.max(MIN_G, numericGravity))}
+                                onChange={(e) => setGravity(parseFloat(e.target.value))}
+                            />
+                            <input
+                                type="number"
+                                step={G_STEP}
+                                min="0"
+                                className="sim-value-input"
+                                value={numericGravity}
+                                onChange={handleCustomGravityChange}
+                            />
 
-                    <span className="sim-label" style={{ marginLeft: '20px' }}>Сглаживание:</span>
-                    <input type="range" min={MIN_SOFTENING} max={MAX_SOFTENING} step={SOFTENING_STEP} value={softening} onChange={(e) => setSoftening(Number(e.target.value))} />
-                    <span className="sim-value">{softening.toFixed(2)}</span>
-                </div>
+                            <span className="sim-status">
+                                {OUTCOME_LABELS[outcome]}
+                            </span>
+                        </div>
 
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Энергия:</span>
-                    <span className="sim-value" style={{ minWidth: '100px' }}>{renderEnergy()}</span>
-                </div>
-
-                <div className="sim-row" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '15px' }}>
-                    <span className="sim-label">Пресеты:</span>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {PRESETS.map((p) => (
-                            <button key={p.name} onClick={() => onPresetSelect(p)} style={{ fontSize: '12px', padding: '6px 12px' }}>
-                                {p.name}
-                            </button>
-                        ))}
+                        <div className="sim-row">
+                            <div className="sim-presets">
+                                {PRESETS.map((p) => (
+                                    <button
+                                        key={p.name}
+                                        type="button"
+                                        onClick={() => onPresetSelect(p)}
+                                    >
+                                        {p.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );
