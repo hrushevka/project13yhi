@@ -88,7 +88,7 @@ export function ControlPanel({
                                         </svg>
                                     )}
                                 </span>
-                                <span>Столкновения</span>
+                                <span>Объединение тел</span>
                             </label>
                             {cameraControls}
                         </div>
