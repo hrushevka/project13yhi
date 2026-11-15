@@ -1,24 +1,23 @@
 # Cosmos lab
 
-Standalone React gravity simulator. No backend, account, or .NET installation is required.
+Симуляция проблемы Трёх космических тел.
 
-From this directory:
+На сайте представленна симуляция - песочница, с большим количеством 
 
+для запуска:
 ```powershell
 npm install
 npm run dev
 ```
+в консоли
+и откройте http://localhost:2283 в браузере
 
-Open http://localhost:2283 in your browser. Keep the terminal running.
-Use the HTTP address; opening index.html directly from the filesystem does not run a Vite application.
-
-To verify and preview a production build:
-
+для проверки и конечного билда:
 ```powershell
 npm run lint
 npm test
 npm run build
 npm run preview
 ```
-
-Open the address printed by the preview command. The `dist` directory can also be served by a static HTTP server.
+в консоли
+и откройте в браузере выведеный порт. Также в папке `dist` будет статический HTTP сайт.
