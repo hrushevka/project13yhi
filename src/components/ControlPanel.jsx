@@ -1,6 +1,5 @@
 import { RangeNumber } from './RangeNumber';
 import { FloatingPanel } from './FloatingPanel';
-import { StabilityIndicator } from './StabilityIndicator';
 
 export function ControlPanel({
     running,
@@ -14,7 +13,6 @@ export function ControlPanel({
     collisions,
     onOpenCatalog,
     configuration,
-    onStabilityResult,
     onCollisionsChange,
     onReset,
     onClear,
@@ -23,6 +21,7 @@ export function ControlPanel({
     return (
         <FloatingPanel id="controls" title="Центр управления" className="controls-panel" collapsedControls={
             <div className="compact-transport">
+                <button type="button" className="compact-catalog" onClick={onOpenCatalog}>Каталог</button>
                 <button type="button" className="compact-play" onClick={() => setRunning(!running)} disabled={bodyCount < 1}>{running ? 'Пауза' : 'Старт'}</button>
                 <button type="button" onClick={onReset} title="Остановить и сбросить">Финиш</button>
                 <label className="compact-speed">
@@ -77,8 +76,7 @@ export function ControlPanel({
                         </div>
 
                         <button type="button" onClick={onOpenCatalog} aria-label="Каталог орбит">Каталог орбит</button>
-                        <StabilityIndicator configuration={configuration} onResult={onStabilityResult} />
-                        {!collisions && <div className="collision-note">{configuration.isPreset ? 'Коллизии выключены: устойчивость пресета не подтверждена.' : 'Коллизии выключены вручную.'}</div>}
+                        {!collisions && <div className="collision-note">{configuration.exactSolution ? 'Точная орбита: коллизии выключены. Численную проверку можно выбрать в параметрах симуляции.' : configuration.isPreset ? 'Коллизии выключены: устойчивость пресета не подтверждена.' : 'Коллизии выключены вручную.'}</div>}
                         <div className="sim-row sim-options">
                             <label className="cosmos-checkbox">
                                 <input

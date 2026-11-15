@@ -168,12 +168,14 @@ export function findEarliestContact(bodies, dt) {
             if (disc < 0) continue;
 
             const sq = Math.sqrt(disc);
-            const t1 = (-b - sq) / (2 * a);
-            const t2 = (-b + sq) / (2 * a);
-            let t = null;
-            if (t1 >= 0 && t1 <= dt) t = t1;
-            else if (t2 >= 0 && t2 <= dt) t = t2;
-            if (t === null) continue;
+            if (b >= 0) continue;
+            // Stable entry root avoids subtracting nearly equal numbers at contact.
+            const entry = 2 * c / (-b + sq);
+            // Include the endpoint despite accumulated floating-point drift.
+            // This is a time tolerance, not an enlargement of the bodies.
+            const tolerance = 1e-12 * Math.max(1, dt);
+            if (entry < 0 || entry > dt + tolerance) continue;
+            const t = Math.min(dt, entry);
 
             if (!best || t < best.t) best = { i, j, t };
         }

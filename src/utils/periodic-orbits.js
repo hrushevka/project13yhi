@@ -21,7 +21,7 @@ export function preparePeriodicOrbit(preset) {
     }
     const closureError = Math.max(...state.flatMap((b, i) => ['x', 'y', 'vx', 'vy'].map((key) => Math.abs(b[key] - preset.bodies[i][key]))));
     if (!Number.isFinite(closureError) || closureError > 0.003) throw new Error('The orbit does not close within the catalog tolerance.');
-    const orbit = { frames, h, period: preset.period, extent, closureError };
+    const orbit = { frames, h, g: preset.g, softening: preset.softening, period: preset.period, extent, closureError };
     if (cache.size >= 4) cache.delete(cache.keys().next().value);
     cache.set(preset, orbit);
     return orbit;
@@ -35,5 +35,5 @@ export function evaluatePeriodicOrbit(orbit, time, state) {
     // Integrate the short remainder: interpolating fast close encounters can
     // produce inconsistent velocities and large artificial energy changes.
     const steps = Math.ceil(remainder / 0.0001);
-    for (let i = 0; i < steps; i++) stepSimulation(state, 1, 0, remainder / steps, { collisions: false });
+    for (let i = 0; i < steps; i++) stepSimulation(state, orbit.g, orbit.softening, remainder / steps, { collisions: false });
 }

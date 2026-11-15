@@ -3,12 +3,18 @@
 export function FloatingPanel({ id, title, children, className = '', onClose, collapsedControls }) {
     const ref = useRef(null);
     const drag = useRef(null);
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(() => id === 'controls' && window.innerWidth <= 700);
     const key = 'cosmos.panel.' + id;
     useLayoutEffect(() => {
         const node = ref.current;
         const clamp = () => {
             const r = node.getBoundingClientRect();
+            if (id === 'controls' && innerWidth <= 700) {
+                node.style.left = '8px';
+                node.style.top = Math.max(8, innerHeight - r.height - 8) + 'px';
+                node.style.right = 'auto'; node.style.bottom = 'auto';
+                return;
+            }
             node.style.left = Math.max(8, Math.min(r.left, innerWidth - r.width - 8)) + 'px';
             node.style.top = Math.max(72, Math.min(r.top, innerHeight - Math.min(r.height, innerHeight - 80) - 8)) + 'px';
             node.style.right = 'auto'; node.style.bottom = 'auto';
@@ -24,12 +30,13 @@ export function FloatingPanel({ id, title, children, className = '', onClose, co
         observer.observe(node);
         window.addEventListener('resize', clamp);
         return () => { observer.disconnect(); window.removeEventListener('resize', clamp); };
-    }, [key]);
+    }, [key, id]);
     function save() {
         const r = ref.current.getBoundingClientRect();
         try { localStorage.setItem(key, JSON.stringify({ x: r.left, y: r.top })); } catch { /* Optional storage. */ }
     }
     function move(x, y) {
+        if (id === 'controls' && innerWidth <= 700) return;
         const node = ref.current, r = node.getBoundingClientRect();
         node.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
         node.style.top = Math.max(72, Math.min(y, innerHeight - 48)) + 'px';

@@ -9,6 +9,7 @@ export function createStats() {
         fragments: 0,
         debrisCount: 0,
         distanceHistory: [],
+        events: [],
         avgDistance: 0,
         minDistance: Infinity,
         maxDistance: 0,
@@ -68,8 +69,10 @@ export function sampleStats(stats, bodies, t, energy, events = []) {
             if (p.d > max) max = p.d;
         }
         const avg = sum / pairs.length;
-        stats.distanceHistory.push({ t, avg, min, max });
-        if (stats.distanceHistory.length > 300) stats.distanceHistory.shift();
+        if (!stats.distanceHistory.length || t - stats.distanceHistory.at(-1).t >= .1 - 1e-9) {
+            stats.distanceHistory.push({ t, avg, min, max });
+            if (stats.distanceHistory.length > 300) stats.distanceHistory.shift();
+        }
 
         stats.avgDistance += avg;
         stats.avgDistanceSamples += 1;
@@ -90,6 +93,7 @@ export function sampleStats(stats, bodies, t, energy, events = []) {
     }
 
     for (const ev of events) {
+        stats.events = [...stats.events, { kind: ev.kind, time: t - stats.dt + (ev.time ?? stats.dt) }].slice(-10);
         if (ev.kind === 'merge') {
             stats.merges += 1;
             stats.lastCollisionTime = t - stats.dt + (ev.time ?? stats.dt);
@@ -101,6 +105,22 @@ export function sampleStats(stats, bodies, t, energy, events = []) {
             if (ev.debris) stats.debrisCount += ev.debris.filter((b) => b.isDebris).length;
         }
     }
+}
+
+export function liveMetrics(bodies, initialBodies) {
+    const pairs = [];
+    for (let i = 0; i < bodies.length; i++) for (let j = i + 1; j < bodies.length; j++) {
+        const a = bodies[i], b = bodies[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const distance = Math.hypot(dx, dy);
+        const radialSpeed = distance > 0 ? (dx * (b.vx - a.vx) + dy * (b.vy - a.vy)) / distance : 0;
+        pairs.push({ label: `${i + 1}–${j + 1}`, distance, gap: distance - (a.r ?? 0) - (b.r ?? 0), radialSpeed });
+    }
+    pairs.sort((a, b) => a.gap - b.gap);
+    const extent = bs => Math.max(0, ...pairDistances(bs).map(p => p.d));
+    const size = extent(bodies), initialSize = extent(initialBodies);
+    return { pairs, size, sizeRatio: initialSize > 0 ? size / initialSize : null,
+        speeds: bodies.map((b, i) => ({ label: i + 1, speed: Math.hypot(b.vx, b.vy) })) };
 }
 
 export function getSummary(stats) {

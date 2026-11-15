@@ -1,5 +1,33 @@
+import { StabilityIndicator } from './StabilityIndicator';
 import { FloatingPanel } from './FloatingPanel';
 import { getSummary } from '../utils/stats';
+
+export function StatsPanel({ stats, final = false, onClose, stability, exactSolution = false, collisions = false, running = false }) {
+    const s = getSummary(stats);
+    const live = stats.live;
+    const closest = live?.pairs[0];
+    const status = exactSolution ? 'Точная орбита' : !closest ? 'Нет пары для сближения' : closest.gap <= 0 ? (collisions ? 'Контакт тел' : 'Тела проходят друг сквозь друга') : closest.radialSpeed < -.001 ? `Сближаются тела ${closest.label}` : closest.radialSpeed > .001 ? `Расходятся тела ${closest.label}` : 'Расстояние почти не меняется';
+    const content = <div className="telemetry">
+        <div className="telemetry-banner"><span className="live-dot" />{running ? 'В ДВИЖЕНИИ' : 'ПАУЗА'}<span>{fmtTime(s.elapsed)}</span></div>
+        <section className="live-status"><strong>{status}</strong><p>{exactSolution ? 'Идеальная траектория без накопления отклонений. Коллизии выключены. Это не проверка устойчивости к возмущениям.' : collisions ? 'Контакты приводят к слиянию тел.' : 'Коллизии выключены: пересечение радиусов не останавливает движение.'}</p></section>
+        <div className="metric-grid">
+            <div className="metric"><small>Зазор между телами</small><strong>{fmt(closest?.gap)}</strong><span>{closest ? `ближайшая пара ${closest.label} · усл. ед.` : 'нужно хотя бы два тела'}</span></div>
+            <div className="metric"><small>Размер системы</small><strong>{fmt(live?.sizeRatio, 2)}<em> ×</em></strong><span>относительно начала</span></div>
+        </div>
+        <section className="telemetry-section"><div className="telemetry-heading"><h3>Сближения сейчас</h3><span>зазор / движение</span></div>
+            <div className="pair-list">{live?.pairs.map(pair => <div key={pair.label}><b>{pair.label}</b><span>{fmt(pair.gap)}</span><small>{Math.abs(pair.radialSpeed) < .001 ? '≈ без изменения' : `${pair.radialSpeed < 0 ? '↘ ближе' : '↗ дальше'} ${fmt(Math.abs(pair.radialSpeed))}/с`}</small></div>)}</div>
+            <p className="solution-note">Зазор отсчитывается между поверхностями. Отрицательный — пересечение радиусов. Направление измерено сейчас, а не предсказано.</p>
+        </section>
+        <section className="telemetry-section"><div className="telemetry-heading"><h3>Расстояния за последние 30 с</h3></div><DistanceChart history={stats.distanceHistory} height={90} /><div className="chart-legend">Линия — среднее; область — от min до max</div></section>
+        <section className="telemetry-section"><div className="telemetry-heading"><h3>Скорости тел</h3><span>усл. ед./с</span></div><div className="speed-cards">{live?.speeds.map(b => <span key={b.label}>Т{b.label} <b>{fmt(b.speed)}</b></span>)}</div></section>
+        <section className="telemetry-section"><div className="telemetry-heading"><h3>События</h3><span>{s.bodyCount} из {s.initialBodyCount} тел</span></div>
+            {stats.events?.length ? <ol className="event-list">{[...stats.events].reverse().map((event, i) => <li key={i}><time>{fmtTime(event.time)}</time> {event.kind === 'merge' ? 'Слияние тел' : 'Фрагментация'}</li>)}</ol> : <p className="solution-note">Столкновений пока не было.</p>}
+        </section>
+        <details className="analytics-details"><summary>Прогноз начальной конфигурации</summary>{stability && <StabilityIndicator result={stability} />}<p className="solution-note">Оценка на 10 с от последнего изменения параметров. Не является прогнозом от текущего момента.</p></details>
+        <details className="analytics-details"><summary>Точность расчёта</summary><p className="solution-note">ΔE = {fmt(s.energyDrift, 8)}. После слияний энергия меняется физически; это не только погрешность.</p></details>
+    </div>;
+    return final ? content : <FloatingPanel id="analytics" title="Аналитика полёта" className="analytics-panel" onClose={onClose}>{content}</FloatingPanel>;
+}
 
 function fmt(v, digits = 3) {
     if (!Number.isFinite(v)) return '—';
@@ -46,34 +74,3 @@ function DistanceChart({ history, height = 80 }) {
     );
 }
 
-export function StatsPanel({ stats, final = false, onClose }) {
-    const s = getSummary(stats);
-    const last = stats.distanceHistory.at(-1);
-    const drift = Math.abs(s.initialEnergy) > 1e-9 ? s.energyDrift / Math.abs(s.initialEnergy) * 100 : null;
-    const impacts = s.merges + s.fragments;
-    const content = (
-        <div className="telemetry">
-            <div className="telemetry-banner"><span className="live-dot" /> ТЕЛЕМЕТРИЯ <span>{fmtTime(s.elapsed)}</span></div>
-            <div className="metric-grid">
-                <div className="metric"><small>Тел в системе</small><strong>{s.bodyCount}<em> / {s.initialBodyCount}</em></strong><span>планеты</span></div>
-                <div className="metric"><small>События</small><strong>{impacts}<em> ударов</em></strong><span>слияния планет</span></div>
-            </div>
-            <section className="telemetry-section">
-                <div className="telemetry-heading"><h3>Пульс орбиты</h3><span>расстояние · усл. ед.</span></div>
-                <DistanceChart history={stats.distanceHistory} height={110} />
-                {last && <div className="metric-strip"><span>{fmtTime(stats.distanceHistory[0].t)}</span><span>{fmtTime(last.t)}</span></div>}
-                <div className="chart-legend"><span>━ среднее между телами</span><span>▰ диапазон min–max</span></div>
-                <div className="metric-strip"><span>Сейчас <b>{last ? fmt(last.avg) : '—'}</b></span><span>Сближение <b>{last ? fmt(s.minDistance) : '—'}</b></span></div>
-            </section>
-            <section className="energy-card">
-                <div className="telemetry-heading"><h3>Баланс энергии</h3><span className={impacts ? '' : Math.abs(drift ?? 0) > 1 ? 'drift-warn' : 'drift-ok'}>{drift === null ? 'ΔE ' + fmt(s.energyDrift, 4) : fmt(drift, 3) + '%'}</span></div>
-                <meter min="0" max="1" value={Math.min(1, Math.abs(drift ?? 0) / 100)} aria-label="Относительное изменение энергии" />
-                <p>{impacts ? 'При слияниях механическая энергия меняется — это не только ошибка расчёта.' : 'Без столкновений энергия должна сохраняться. Рост отклонения показывает погрешность расчёта.'}</p>
-                <div className="metric-strip"><span>Начало <b>{fmt(s.initialEnergy, 4)}</b></span><span>Сейчас <b>{fmt(s.energy, 4)}</b></span></div>
-            </section>
-            <div className="metric-strip speed-strip"><span>Средняя скорость <b>{stats.avgSpeedSamples ? fmt(s.avgSpeed) : '—'}</b></span><span>Пиковая <b>{stats.avgSpeedSamples ? fmt(s.maxSpeed) : '—'}</b></span></div>
-            <div className="insight"><b>{impacts ? 'Зафиксирован контакт' : s.elapsed ? 'Наблюдение за системой' : 'Готовы к исследованию'}</b><p>{impacts ? 'Последний контакт: ' + fmtTime(s.lastCollisionTime) + '.' : 'Запустите движение. График покажет сближения, а энергия — точность расчёта. Все величины в условных единицах.'}</p></div>
-        </div>
-    );
-    return final ? content : <FloatingPanel id="analytics" title="Аналитика полёта" className="analytics-panel" onClose={onClose}>{content}</FloatingPanel>;
-}

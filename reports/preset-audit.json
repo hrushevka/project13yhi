@@ -1,0 +1,1302 @@
+{
+  "duration": 100,
+  "method": "Numerical integration only; no exact solutions or periodic replay. Planet radii match UI. Energy error excludes steps after the first merger. Ejection uses the app classifier; no event is not proof of stability.",
+  "rows": [
+    {
+      "name": "Восьмёрка",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.690523774656229,
+          "maxDistance": 2.000002344055724,
+          "maxEnergyError": 5.891792270611136e-7,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.6905258648460467,
+          "maxDistance": 2.000000616805857,
+          "maxEnergyError": 1.472926941671653e-7,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.6905266271461414,
+          "maxDistance": 2.000000006576766,
+          "maxEnergyError": 7.102228381360389e-13,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.6905266015304768,
+          "maxDistance": 2.0000000204930384,
+          "maxEnergyError": 7.059100931874353e-13,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Эйлер",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.999999999999998,
+          "maxDistance": 2.00000324999764,
+          "maxEnergyError": 2.745291173876187e-12,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.999999999999961,
+          "maxDistance": 2.0000008124998208,
+          "maxEnergyError": 1.5344990235742161e-13,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.9999999999890257,
+          "maxDistance": 2,
+          "maxEnergyError": 9.305376981781311e-14,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 72.687,
+          "minDistance": 0.16537379840446562,
+          "maxDistance": 5.4737146430871855,
+          "maxEnergyError": 1.464897844053544e-7,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Лагранж (3-1-1)",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 26.079367114006487,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18148656896174437,
+          "maxDistance": 2.4201402891285966,
+          "maxEnergyError": 0.00014607708900690346,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 23.178374313536914,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.2212730026536528,
+          "maxDistance": 16.912500392296298,
+          "maxEnergyError": 0.00004579083054664527,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 28.606,
+          "minDistance": 0.08441957849971857,
+          "maxDistance": 26.157240767866668,
+          "maxEnergyError": 0.00000317720588822417,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 12.366,
+          "minDistance": 0.0033174891898508766,
+          "maxDistance": 8.877545165884856,
+          "maxEnergyError": 0.0006572878653055322,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Лагранж (1-1-1)",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 36.4286773729653,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18177717150226744,
+          "maxDistance": 2.4766817603779185,
+          "maxEnergyError": 0.00009726960995326547,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 28.99135594464204,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18069756011345312,
+          "maxDistance": 2.8427694389475535,
+          "maxEnergyError": 0.0000054182255508905524,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 32.197,
+          "minDistance": 0.0076729730218567565,
+          "maxDistance": 23.31866084591863,
+          "maxEnergyError": 0.000010637627914237646,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 15.575000000000001,
+          "minDistance": 0.0023249166198902023,
+          "maxDistance": 10.10480658563565,
+          "maxEnergyError": 0.0003050008443820455,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Лагранж: эллипсы (1-2-3)",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 71.53948530558014,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.2053120422859558,
+          "maxDistance": 8.064731229729803,
+          "maxEnergyError": 0.0001860667715127624,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 67.62718005723364,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.20427954236128143,
+          "maxDistance": 7.054026167637142,
+          "maxEnergyError": 0.00009617033836145132,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 53.836,
+          "minDistance": 0.03487036132180712,
+          "maxDistance": 10.824417420333862,
+          "maxEnergyError": 0.0000011251461080002448,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": 83.101,
+          "radiusOverlap": 29.098,
+          "minDistance": 0.04005151374136287,
+          "maxDistance": 84.36705608078807,
+          "maxEnergyError": 0.0000010374054036012888,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Лагранж: овалы (1-1-1)",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.32279305619709864,
+          "maxDistance": 7.6245355532899115,
+          "maxEnergyError": 0.000017502327487032934,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 50.01525079887904,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18060967722966817,
+          "maxDistance": 27.68392015246228,
+          "maxEnergyError": 0.00001875145025328113,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18582594376354616,
+          "maxDistance": 11.214641918591854,
+          "maxEnergyError": 4.6566244421706516e-8,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 32.166000000000004,
+          "minDistance": 0.0004455854202646593,
+          "maxDistance": 6.1065902884151635,
+          "maxEnergyError": 0.0002991226183673836,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Лагранж: вытянутые эллипсы",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.4051308770670834,
+          "maxDistance": 9.19711512257433,
+          "maxEnergyError": 0.000036760859733486985,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.35153093981434735,
+          "maxDistance": 5.368486596011381,
+          "maxEnergyError": 0.0000175209995069397,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.4304784421501322,
+          "maxDistance": 7.242707927309035,
+          "maxEnergyError": 1.301713566868896e-9,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 51.944,
+          "minDistance": 0.016883231948067488,
+          "maxDistance": 7.4324221517374545,
+          "maxEnergyError": 0.000004153698257909481,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Эйлер: эллипсы",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 1.0000000000627869,
+          "maxDistance": 6.000009749613715,
+          "maxEnergyError": 0.0000011040474107587151,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 1.000000000015395,
+          "maxDistance": 6.000002436989386,
+          "maxEnergyError": 2.7601164348950026e-7,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 1.0000000004224439,
+          "maxDistance": 5.999999999663928,
+          "maxEnergyError": 3.4453124114336876e-12,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": 89.20100000000001,
+          "radiusOverlap": 36.39,
+          "minDistance": 0.05840434008769543,
+          "maxDistance": 59.26942564282361,
+          "maxEnergyError": 0.00000413896516977712,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Бабочка I",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 0.5021805656187329,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18069942465581457,
+          "maxDistance": 1.99999875,
+          "maxEnergyError": 0.00020392208268865954,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 0.5021800045891666,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18069447605534503,
+          "maxDistance": 1.9999996875000001,
+          "maxEnergyError": 0.00005099132003318564,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.503,
+          "minDistance": 0.011024750370109878,
+          "maxDistance": 2.007086927161418,
+          "maxEnergyError": 0.00001584470817277291,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.503,
+          "minDistance": 0.011024750958047308,
+          "maxDistance": 2.0071374412581755,
+          "maxEnergyError": 0.00001585052712822652,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Бабочка II",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 0.4385501098217834,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18225163850587575,
+          "maxDistance": 1.99999875,
+          "maxEnergyError": 0.00024814416998741347,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 0.4385506068299756,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1802077611044056,
+          "maxDistance": 1.9999996875,
+          "maxEnergyError": 0.00006489016913311021,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.439,
+          "minDistance": 0.004102637793378439,
+          "maxDistance": 2.0000566332827887,
+          "maxEnergyError": 0.00003213320475503716,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.439,
+          "minDistance": 0.004102622308325036,
+          "maxDistance": 2.0000566301289546,
+          "maxEnergyError": 0.000032141036684146046,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Мотылёк I",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 2.23176207364891,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18261934239089403,
+          "maxDistance": 1.99999875,
+          "maxEnergyError": 0.00019326186082944843,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 2.2317555672490705,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18087907340842563,
+          "maxDistance": 1.9999996875,
+          "maxEnergyError": 0.00004955282972612882,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 2.232,
+          "minDistance": 0.07946603806495364,
+          "maxDistance": 2.1600670141013207,
+          "maxEnergyError": 0.0000010731397708351482,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 2.232,
+          "minDistance": 0.07946603916063331,
+          "maxDistance": 2.1600670074432586,
+          "maxEnergyError": 0.0000010731399456074002,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Мотылёк II",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 5.575239327701522,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18095470688242463,
+          "maxDistance": 2.147728562906358,
+          "maxEnergyError": 0.00033214651379668745,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 5.575234571950833,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1809321611399713,
+          "maxDistance": 2.1477282164592237,
+          "maxEnergyError": 0.0000830764826024475,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 5.5760000000000005,
+          "minDistance": 0.049695653466673186,
+          "maxDistance": 2.2552593655117863,
+          "maxEnergyError": 0.0000014952514312679074,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 5.5760000000000005,
+          "minDistance": 0.04969564651186715,
+          "maxDistance": 2.2552593625861954,
+          "maxEnergyError": 0.0000014952500927357497,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Стрекоза",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 1.296405803972682,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18170466590697631,
+          "maxDistance": 1.99999875,
+          "maxEnergyError": 0.0003441402462066254,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 1.2964062342421458,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18170026818761242,
+          "maxDistance": 1.9999996875,
+          "maxEnergyError": 0.00008605185542261552,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.297,
+          "minDistance": 0.007335567504426438,
+          "maxDistance": 2.0250491156849577,
+          "maxEnergyError": 0.000011983988129676844,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.297,
+          "minDistance": 0.0073355665331181034,
+          "maxDistance": 2.0250491155421795,
+          "maxEnergyError": 0.000011984317724903252,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Инь-Ян I",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 1.9810450486772408,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18019755622412156,
+          "maxDistance": 2.053371224912985,
+          "maxEnergyError": 0.000416425857452719,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 1.9810120974622518,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18005288715722648,
+          "maxDistance": 2.0533941226698067,
+          "maxEnergyError": 0.00010445677357074729,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.982,
+          "minDistance": 0.0132763160464474,
+          "maxDistance": 2.713821260376276,
+          "maxEnergyError": 0.000006141461587706292,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.982,
+          "minDistance": 0.013276313445845076,
+          "maxDistance": 2.7138212390710392,
+          "maxEnergyError": 0.000006141780210691602,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Инь-Ян II",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 1.410392432152895,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1817640158103995,
+          "maxDistance": 1.99999875,
+          "maxEnergyError": 0.0003131071589315026,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 1.4103880229569716,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18173837089283149,
+          "maxDistance": 1.9999996875,
+          "maxEnergyError": 0.00007832895533728798,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.411,
+          "minDistance": 0.009784798492767848,
+          "maxDistance": 2.0008845256704255,
+          "maxEnergyError": 0.000008513091048825346,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.411,
+          "minDistance": 0.009784796117572827,
+          "maxDistance": 2.000886684195584,
+          "maxEnergyError": 0.000008514167713095978,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Брук R4",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.37750134859012097,
+          "maxDistance": 1.4987112020167361,
+          "maxEnergyError": 9.5718397655103e-7,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.37750134865052903,
+          "maxDistance": 1.4987086001466234,
+          "maxEnergyError": 2.3926934973437007e-7,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.3775013480285628,
+          "maxDistance": 1.4987077383877103,
+          "maxEnergyError": 4.815718796294007e-11,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.37750134518332357,
+          "maxDistance": 1.4987077532948263,
+          "maxEnergyError": 4.8085417070466337e-11,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Овал / кошачья мордочка",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 1.476485902418268,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1820259775292271,
+          "maxDistance": 2.354996726954138,
+          "maxEnergyError": 0.00033838583760965966,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 1.4765188305899288,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1800787382956444,
+          "maxDistance": 2.3549954900261816,
+          "maxEnergyError": 0.00008839840880678946,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.477,
+          "minDistance": 0.0007913111041493748,
+          "maxDistance": 5.960186193400253,
+          "maxEnergyError": 0.00015597179736826812,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": 69.001,
+          "radiusOverlap": 1.477,
+          "minDistance": 0.009186332436677498,
+          "maxDistance": 106.23467047731236,
+          "maxEnergyError": 0.00005134596718014135,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Два овала",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.21895808124920865,
+          "maxDistance": 1.5382089050234768,
+          "maxEnergyError": 0.00006569536612710994,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.23157635979207777,
+          "maxDistance": 1.5146685164329523,
+          "maxEnergyError": 0.000012988793905106938,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.237819714426447,
+          "maxDistance": 1.5049691948519899,
+          "maxEnergyError": 5.766377278805745e-9,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.23783035433032657,
+          "maxDistance": 1.5049530224546779,
+          "maxEnergyError": 5.7644690247632185e-9,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Три овала",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 0.3800508425704582,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1801780579048834,
+          "maxDistance": 1.4858955087577372,
+          "maxEnergyError": 0.00013386452631029564,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 0.380049635282424,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1801730606203552,
+          "maxDistance": 1.485895770817996,
+          "maxEnergyError": 0.00003347185312625895,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.381,
+          "minDistance": 0.056144665224788046,
+          "maxDistance": 1.4859019677548007,
+          "maxEnergyError": 0.000003146584263579358,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.381,
+          "minDistance": 0.05614461065356344,
+          "maxDistance": 1.485901998851671,
+          "maxEnergyError": 0.0000031465641017264207,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Овалы с завитками",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 15.582528982128773,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18229037063336567,
+          "maxDistance": 3.5254235750356577,
+          "maxEnergyError": 0.0006217726893917478,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 15.980218834589703,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18065301804386935,
+          "maxDistance": 3.524885210963251,
+          "maxEnergyError": 0.00006607590416195502,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 24.869,
+          "minDistance": 0.03809987786885019,
+          "maxDistance": 34.90879917185249,
+          "maxEnergyError": 0.000005264220689375543,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 29.407,
+          "minDistance": 0.004078083648838657,
+          "maxDistance": 6.3872219593825,
+          "maxEnergyError": 0.00001259184729891509,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Рука об руку",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 0.4103266483220217,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1812403991342229,
+          "maxDistance": 2.6415427811017245,
+          "maxEnergyError": 0.00024553756706706116,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 0.41032677618903196,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1812358685084009,
+          "maxDistance": 2.641539270832995,
+          "maxEnergyError": 0.00006139689332381711,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.41100000000000003,
+          "minDistance": 0.011993745943224108,
+          "maxDistance": 21.08743696279545,
+          "maxEnergyError": 0.000007242822995901735,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": 84.901,
+          "radiusOverlap": 0.41100000000000003,
+          "minDistance": 0.006623176295835184,
+          "maxDistance": 66.64901457273604,
+          "maxEnergyError": 0.0014241241607136329,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Треугольники с петлями",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.2979782919584659,
+          "maxDistance": 1.3881665081687804,
+          "maxEnergyError": 0.000011716221036325654,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.29798015898104324,
+          "maxDistance": 1.3881606841294822,
+          "maxEnergyError": 0.0000029289480938344074,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.2979807970926472,
+          "maxDistance": 1.388158926647315,
+          "maxEnergyError": 8.360868805250339e-10,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.29798080483156697,
+          "maxDistance": 1.3881589385538284,
+          "maxEnergyError": 8.361633442318191e-10,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Ананас",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 1.1044910063777271,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18196685172868035,
+          "maxDistance": 2.61486852920027,
+          "maxEnergyError": 0.0002708069463548821,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 1.1044917109101617,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18196218776443532,
+          "maxDistance": 2.6148688923027255,
+          "maxEnergyError": 0.00006771692530592279,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": 76.001,
+          "radiusOverlap": 1.105,
+          "minDistance": 0.0014481822453410137,
+          "maxDistance": 197.40423438203115,
+          "maxEnergyError": 0.0019721790975231837,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 1.105,
+          "minDistance": 0.001983550255393286,
+          "maxDistance": 3.064183678573602,
+          "maxEnergyError": 0.00007437048308245278,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "Колыбель Ньютона",
+      "runs": [
+        {
+          "collisions": true,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": 0.873128550905476,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.1805560867679053,
+          "maxDistance": 2.309493970326092,
+          "maxEnergyError": 0.00030019282713775446,
+          "error": null
+        },
+        {
+          "collisions": true,
+          "dt": 0.0005,
+          "elapsed": 100,
+          "firstCollision": 0.8731277864108579,
+          "firstEjection": null,
+          "radiusOverlap": null,
+          "minDistance": 0.18055080506102156,
+          "maxDistance": 2.3094941859205833,
+          "maxEnergyError": 0.0000750684917666507,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.874,
+          "minDistance": 0.0013572026657433652,
+          "maxDistance": 2.3095034717948475,
+          "maxEnergyError": 0.00007444526542523988,
+          "error": null
+        },
+        {
+          "collisions": false,
+          "dt": 0.001,
+          "perturbation": 1e-8,
+          "elapsed": 100,
+          "firstCollision": null,
+          "firstEjection": null,
+          "radiusOverlap": 0.874,
+          "minDistance": 0.0017539846141982412,
+          "maxDistance": 2.3095034517573136,
+          "maxEnergyError": 0.00007502701707028076,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

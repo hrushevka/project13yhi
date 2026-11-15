@@ -120,6 +120,7 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
 
     const handleSvgPointerDown = (e) => {
         e.stopPropagation();
+        if (e.pointerType === 'touch') return;
         const el = svgRef.current;
         if (!el) return;
         el.setPointerCapture(e.pointerId);
@@ -305,7 +306,8 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
     );
 }
 
-export function SimulationSetupMenu({ onStart, onClose }) {
+export function SimulationSetupMenu({ onStart, onClose, exactAvailable = false }) {
+    const [numerical, setNumerical] = useState(false);
     const modalRef = useRef(null);
     const [pos, setPos] = useState(() => ({
         x: Math.max(8, Math.floor((window.innerWidth - Math.min(310, window.innerWidth - 16)) / 2)),
@@ -335,7 +337,7 @@ export function SimulationSetupMenu({ onStart, onClose }) {
 
     const handlePointerDown = (e) => {
         e.stopPropagation();
-        if (e.target.closest('input, button, label')) return;
+        if (!e.target.closest('.body-menu-header') || e.target.closest('button')) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         dragOffsetRef.current = {
             dx: e.clientX - pos.x,
@@ -400,6 +402,7 @@ export function SimulationSetupMenu({ onStart, onClose }) {
                     />
                 </div>
 
+                {exactAvailable && <label className="solution-note"><input type="checkbox" checked={numerical} onChange={e => setNumerical(e.target.checked)} /> Проверить численно вместо точной орбиты (возможен распад)</label>}
                 <div className="sim-expect-group">
                     <label>Ожидаемый результат</label>
                     <div className="sim-expect-options">
@@ -424,7 +427,7 @@ export function SimulationSetupMenu({ onStart, onClose }) {
                 <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => onStart(Math.max(0.5, toFloat(targetTime, 10)), expectedOutcome)}
+                    onClick={() => onStart(Math.max(0.5, toFloat(targetTime, 10)), expectedOutcome, numerical)}
                 >
                     Запустить
                 </button>
@@ -467,7 +470,7 @@ export function SimulationReportModal({ report, onClose }) {
 
     const handlePointerDown = (e) => {
         e.stopPropagation();
-        if (e.target.closest('button, .sim-chart-svg')) return;
+        if (!e.target.closest('.body-menu-header') || e.target.closest('button')) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         dragOffsetRef.current = {
             dx: e.clientX - pos.x,
@@ -578,6 +581,7 @@ export function SimulationReportModal({ report, onClose }) {
                 <button type="button" onClick={onClose} aria-label="Закрыть">×</button>
             </div>
 
+            {report.exactSolution && <p className="solution-note">Точное решение Ньютона для идеального пресета. Этот прогон не проверяет устойчивость к возмущениям.</p>}
             <div className={`sim-modal-result ${report.matched ? 'matched' : 'mismatched'}`}>
                 <div>
                     Ожидание: <b>{OUTCOME_LABELS[report.expected] || report.expected}</b> | Реальный исход: <b>{OUTCOME_LABELS[report.actual] || report.actual}</b>

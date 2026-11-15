@@ -122,3 +122,36 @@ button:disabled { cursor:not-allowed; }
 .compact-speed span { font:11px ui-monospace,monospace; color:var(--text-secondary); min-width:34px; text-align:right; }
 .compact-speed input { width:100%; min-width:25px; accent-color:var(--accent); }
 .compact-chrome > button:last-child { flex:0 0 28px; }
+.compact-transport .compact-catalog { display:none; }
+.telemetry > .stability-indicator { margin-bottom:16px; }
+.solution-note { color:var(--text-secondary); font-size:12px; line-height:1.6; }
+.live-status { border-left:3px solid var(--accent); padding:10px 12px; margin-bottom:12px; background:var(--accent-soft); border-radius:8px; }
+.live-status strong { font-size:14px; }
+.live-status p { font-size:11px; line-height:1.5; color:var(--text-secondary); margin:8px 0 0; }
+.telemetry .metric strong { font-size:25px; }
+.pair-list > div { display:grid; grid-template-columns:40px 65px 1fr; gap:8px; padding:9px 0; border-bottom:1px solid var(--border-subtle); font-size:12px; }
+.pair-list small { text-align:right; color:var(--text-secondary); }
+.speed-cards { display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+.speed-cards span { display:grid; gap:5px; padding:10px; background:var(--surface-2); border-radius:8px; }
+.analytics-details { border-top:1px solid var(--border); padding:12px 0; font-size:12px; }
+.analytics-details summary { cursor:pointer; padding:4px 0; }
+.event-list { padding-left:16px; font-size:12px; line-height:1.8; }
+.event-list time { color:var(--accent); }
+.sim-modal, .sim-report-modal { touch-action:pan-y; cursor:default; overscroll-behavior:contain; }
+.sim-report-modal > * { flex-shrink:0; }
+.sim-report-modal .sim-chart-svg { touch-action:pan-y; }
+@media(max-width:700px) {
+  .body-menu.sim-report-modal, .body-menu.sim-modal {
+    top:8px!important; left:8px!important;
+    width:calc(100vw - 16px); max-height:calc(100dvh - 16px);
+  }
+  .compact-transport .compact-catalog { display:block; }
+  .compact-speed { display:none; }
+  .compact-transport { justify-content:space-between; }
+  .controls-panel .panel-chrome button { min-height:44px; }
+  .controls-panel .panel-content { max-height:50dvh; }
+  .controls-panel .panel-grip { cursor:default; }
+  .corner-brand .brand-logo { width:36px; height:36px; }
+  .corner-brand .brand-title { display:none; }
+  .body-menu { max-height:55dvh; overflow:auto; max-width:calc(100vw - 16px); }
+}
