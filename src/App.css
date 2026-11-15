@@ -831,6 +831,112 @@
   gap: 8px;
 }
 
+.cosmos-camera-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.cosmos-camera-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 6px 0 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.cosmos-camera-control:hover {
+  background: var(--surface-3);
+}
+
+.cosmos-camera-control.is-following {
+  border-color: var(--accent);
+}
+
+.cosmos-camera-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.cosmos-camera-control.is-following .cosmos-camera-icon {
+  color: var(--accent);
+}
+
+.cosmos-camera-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.cosmos-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.cosmos-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 26px;
+  padding: 0 24px 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+
+[data-theme='dark'] .cosmos-select {
+  color-scheme: dark;
+}
+
+[data-theme='light'] .cosmos-select {
+  color-scheme: light;
+}
+
+.cosmos-select:hover {
+  border-color: var(--surface-3);
+}
+
+.cosmos-select:focus-visible {
+  border-color: var(--accent);
+}
+
+.cosmos-select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.cosmos-select-arrow {
+  position: absolute;
+  right: 7px;
+  pointer-events: none;
+  color: var(--text-secondary);
+}
+
+.sim-panel button.cosmos-camera-reset {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
 .cosmos-checkbox {
   position: relative;
   display: inline-flex;
@@ -1350,6 +1456,37 @@ label.solution-note input {
     grid-template-columns: minmax(80px, 98px) minmax(48px, 1fr) 68px;
     gap: 6px;
     padding: 6px 8px;
+  }
+
+  .sim-options {
+    gap: 6px;
+  }
+
+  .cosmos-checkbox,
+  .cosmos-camera-control,
+  .sim-panel button.cosmos-camera-reset {
+    height: 32px;
+    font-size: 0.7rem;
+  }
+
+  .cosmos-checkbox,
+  .sim-panel button.cosmos-camera-reset {
+    padding: 0 10px;
+  }
+
+  .cosmos-camera-control {
+    padding: 0 4px 0 10px;
+    gap: 6px;
+  }
+
+  .cosmos-camera-label {
+    font-size: 0.68rem;
+  }
+
+  .cosmos-select {
+    height: 24px;
+    font-size: 0.68rem;
+    padding: 0 22px 0 8px;
   }
 
   .sim-stats-grid {

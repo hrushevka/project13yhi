@@ -1377,12 +1377,37 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
 
             <ControlPanel
                 cameraControls={<>
-            <div className="sim-row sim-options" onPointerDown={e => e.stopPropagation()}>
-                <label>Камера <select aria-label="Следовать за планетой" value={followId ?? ''} onChange={e => { const id = e.target.value || null; followRef.current = id; setFollowId(id); }}>
+            <div className="cosmos-camera-group" onPointerDown={(e) => e.stopPropagation()}>
+                <label className={`cosmos-camera-control ${followId ? 'is-following' : ''}`}>
+                    <svg className="cosmos-camera-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3.5" />
+                        <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                    </svg>
+                    <span className="cosmos-camera-label">Камера</span>
+                    <span className="cosmos-select-wrap">
+                        <select className="cosmos-select" aria-label="Следовать за планетой" value={followId ?? ''} onChange={(e) => { const id = e.target.value || null; followRef.current = id; setFollowId(id); }}>
                     <option value="">Свободная</option>
                     {statsView.live?.speeds.map(b => <option key={b.id} value={b.id}>Планета {b.label}</option>)}
-                </select></label>
-                <button onClick={() => { followRef.current = null; setFollowId(null); cameraRef.current = { x: 0, y: 0, zoom: fittedZoom(presetRef.current, stateRef.current, window.innerWidth, window.innerHeight) }; }}>Вся система</button>
+                        </select>
+                        <svg className="cosmos-select-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6" />
+                        </svg>
+                    </span>
+                </label>
+                <button
+                    type="button"
+                    className="cosmos-camera-reset"
+                    onClick={() => {
+                        followRef.current = null;
+                        setFollowId(null);
+                        cameraRef.current = { x: 0, y: 0, zoom: fittedZoom(presetRef.current, stateRef.current, window.innerWidth, window.innerHeight) };
+                    }}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+                    </svg>
+                    <span>Вся система</span>
+                </button>
             </div>
                 </>}
                 isPanelCollapsed={isPanelCollapsed}
