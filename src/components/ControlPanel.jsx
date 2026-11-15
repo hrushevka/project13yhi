@@ -1,7 +1,9 @@
 import { RangeNumber } from './RangeNumber';
-import { FloatingPanel } from './FloatingPanel';
 
 export function ControlPanel({
+    isPanelCollapsed,
+    setIsPanelCollapsed,
+    configuration,
     running,
     setRunning,
     bodyCount,
@@ -11,25 +13,15 @@ export function ControlPanel({
     gravity,
     setGravity,
     collisions,
-    onOpenCatalog,
-    configuration,
     onCollisionsChange,
     onReset,
     onClear,
     onOpenSimulation,
 }) {
+    const isPresetCollisionsLocked = Boolean(configuration?.isPreset);
+
     return (
-        <FloatingPanel id="controls" title="Центр управления" className="controls-panel" collapsedControls={
-            <div className="compact-transport">
-                <button type="button" className="compact-catalog" onClick={onOpenCatalog}>Каталог</button>
-                <button type="button" className="compact-play" onClick={() => setRunning(!running)} disabled={bodyCount < 1}>{running ? 'Пауза' : 'Старт'}</button>
-                <button type="button" onClick={onReset} title="Остановить и сбросить">Финиш</button>
-                <label className="compact-speed">
-                    <span>{speed.toFixed(1)}×</span>
-                    <input type="range" min="0.1" max="10" step="0.1" value={speed} aria-label="Скорость в свёрнутой панели" onChange={e => setSpeed(Number(e.target.value))} />
-                </label>
-            </div>
-        }>
+        <div className={`sim-panel-wrapper ${isPanelCollapsed ? 'collapsed' : ''}`}>
             <section className="sim-panel" aria-label="Управление симуляцией">
                 <div className="sim-row transport-row">
                     <button
@@ -52,9 +44,17 @@ export function ControlPanel({
                     <span className="sim-label time-display">
                         Время <span className="sim-time" ref={timeTextRef}>0.00 с</span>
                     </span>
+                    <button
+                        type="button"
+                        className="collapse-control"
+                        aria-expanded={!isPanelCollapsed}
+                        onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+                    >
+                        {isPanelCollapsed ? 'Настройки ▴' : 'Свернуть ▾'}
+                    </button>
                 </div>
 
-                {(
+                {!isPanelCollapsed && (
                     <div className="sim-settings-body">
                         <div className="sim-controls-grid">
                             <RangeNumber
@@ -75,15 +75,16 @@ export function ControlPanel({
                             />
                         </div>
 
-                        <button type="button" onClick={onOpenCatalog} aria-label="Каталог орбит">Каталог орбит</button>
-                        {!collisions && <div className="collision-note">{configuration.exactSolution ? 'Точная орбита: коллизии выключены. Численную проверку можно выбрать в параметрах симуляции.' : configuration.isPreset ? 'Коллизии выключены: устойчивость пресета не подтверждена.' : 'Коллизии выключены вручную.'}</div>}
                         <div className="sim-row sim-options">
-                            <label className="cosmos-checkbox">
+                            <label
+                                className="cosmos-checkbox"
+                                title={isPresetCollisionsLocked ? 'Для выбранного пресета режим столкновений определяется автоматически' : undefined}
+                            >
                                 <input
                                     type="checkbox"
                                     checked={collisions}
-                                    disabled={configuration.isPreset}
-                                    onChange={e => onCollisionsChange(e.target.checked)}
+                                    disabled={isPresetCollisionsLocked}
+                                    onChange={(e) => onCollisionsChange(e.target.checked)}
                                 />
                                 <span className="cosmos-checkbox-box" aria-hidden="true">
                                     {collisions && (
@@ -92,12 +93,12 @@ export function ControlPanel({
                                         </svg>
                                     )}
                                 </span>
-                                <span>Коллизии: {collisions ? 'включены' : 'выключены'}{configuration.isPreset ? ' · авто' : ''}</span>
+                                <span>Столкновения{isPresetCollisionsLocked ? ' (авто)' : ''}</span>
                             </label>
                         </div>
                     </div>
                 )}
             </section>
-        </FloatingPanel>
+        </div>
     );
 }

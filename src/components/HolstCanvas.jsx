@@ -26,8 +26,8 @@ const MIN_BODIES = 1;
 const MAX_TRAIL_POINTS = 4000;
 const TRAIL_SAMPLE_TIME = 0.01;
 const GRID_STEP = 60;
-const MIN_ZOOM = 10;
-const MAX_ZOOM = 1000;
+const MIN_ZOOM = 2;
+const MAX_ZOOM = 2500;
 const BASE_ZOOM = 120;
 const VEL_SCALE = 0.6;
 const STAR_TILE_WORLD = 16;
@@ -163,7 +163,7 @@ function readCanvasPalette() {
     };
 }
 
-export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePresetChange, onOpenCatalog }) {
+export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePresetChange }) {
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
     const paletteRef = useRef(null);
@@ -200,12 +200,15 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     const [outcome, setOutcome] = useState('unknown');
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState(null);
+    const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
     const [showStats, setShowStats] = useState(() => {
-        try { const saved = localStorage.getItem('cosmos.analytics'); return saved === null ? window.innerWidth >= 900 : saved === 'true'; }
-        catch { return window.innerWidth >= 900; }
+        if (window.innerWidth < 900) return false;
+        try { const saved = localStorage.getItem('cosmos.analytics'); return saved === null ? true : saved === 'true'; }
+        catch { return true; }
     });
     const toggleStats = (value) => {
         setShowStats(value);
+        if (window.innerWidth < 900) return undefined;
         try { localStorage.setItem('cosmos.analytics', String(value)); } catch { return undefined; }
         return undefined;
     };
@@ -243,7 +246,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     const selectedRef = useRef(null);
     const forecastRevision = useRef(0);
     const autoCollisionsRef = useRef(true);
-    const [numericalExperiment, setNumericalExperiment] = useState(false);
+    const [, setNumericalExperiment] = useState(false);
     const [configuration, setConfiguration] = useState(() => ({
         revision: 0,
         isPreset: true,
@@ -271,7 +274,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         collisionsRef.current = enabled;
         setCollisions(enabled);
     }, []);
-    const stability = useStabilityForecast(configuration, applyStabilityResult);
+    useStabilityForecast(configuration, applyStabilityResult);
 
     useEffect(() => {
         onActivePresetChangeRef.current?.(PRESETS[0]);
@@ -642,7 +645,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
             canvas.width = Math.floor(rect.width * dpr);
             canvas.height = Math.floor(rect.height * dpr);
-            if ((cachedWidth > 0 && cachedHeight > 0) || (rect.width > 0 && rect.height > 0 && cachedWidth === 0)) {
+            if (cachedWidth === 0 && rect.width > 0 && rect.height > 0) {
                 cameraRef.current.zoom = fittedZoom(presetRef.current, stateRef.current, rect.width, rect.height);
             }
             cachedWidth = rect.width;
@@ -934,7 +937,8 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             const cam = cameraRef.current;
-            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            if (e.deltaY === 0) return;
+            const zoomFactor = e.ctrlKey ? Math.exp(-e.deltaY * 0.01) : (e.deltaY < 0 ? 1.1 : 0.9);
             const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.zoom * zoomFactor));
 
             if (newZoom === cam.zoom) return;
@@ -947,12 +951,128 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             cam.y = mouseY - rect.height * 0.35 + worldY * newZoom;
         };
 
+        const toTouchPoints = (touches, rect) => [
+            { x: touches[0].clientX - rect.left, y: touches[0].clientY - rect.top },
+            { x: touches[1].clientX - rect.left, y: touches[1].clientY - rect.top },
+        ];
+
+        const startTouchPinch = (touches, rect) => {
+            if (touchSnapshotRef.current && !runningRef.current) {
+                stateRef.current = cloneBodies(touchSnapshotRef.current);
+            }
+            dragRef.current = {
+                kind: 'pinch',
+                pinchSource: 'touch',
+                touchIds: [touches[0].identifier, touches[1].identifier],
+                camera: { ...cameraRef.current },
+                points: toTouchPoints(touches, rect),
+            };
+            lastTapRef.current = { time: 0, index: null };
+            pointersRef.current.clear();
+        };
+
+        const handleTouchStart = (e) => {
+            if (e.touches.length === 1 && dragRef.current.kind === 'pinch') {
+                dragRef.current = { kind: 'none' };
+                pointersRef.current.clear();
+            }
+            if (e.touches.length < 2) return;
+            e.preventDefault();
+            startTouchPinch(e.touches, canvas.getBoundingClientRect());
+        };
+
+        const handleTouchMove = (e) => {
+            if (e.touches.length >= 2) {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const drag = dragRef.current;
+                if (drag.kind !== 'pinch' || drag.pinchSource !== 'touch' || !drag.touchIds) {
+                    startTouchPinch(e.touches, rect);
+                    return;
+                }
+                const list = Array.from(e.touches);
+                const first = list.find((t) => t.identifier === drag.touchIds[0]);
+                const second = list.find((t) => t.identifier === drag.touchIds[1]);
+                if (!first || !second) {
+                    startTouchPinch(e.touches, rect);
+                    return;
+                }
+                const points = [
+                    { x: first.clientX - rect.left, y: first.clientY - rect.top },
+                    { x: second.clientX - rect.left, y: second.clientY - rect.top },
+                ];
+                cameraRef.current = pinchCamera(drag.camera, drag.points, points, rect.width, rect.height, MIN_ZOOM, MAX_ZOOM);
+                return;
+            }
+            if (dragRef.current.kind === 'pinch') {
+                e.preventDefault();
+            }
+        };
+
+        const handleTouchEnd = (e) => {
+            if (e.touches.length >= 2 && dragRef.current.kind === 'pinch') {
+                startTouchPinch(e.touches, canvas.getBoundingClientRect());
+                return;
+            }
+            if (e.touches.length === 1 && dragRef.current.kind === 'pinch') {
+                dragRef.current = {
+                    kind: 'pinch',
+                    pinchSource: 'touch',
+                    touchIds: null,
+                    camera: { ...cameraRef.current },
+                    points: null,
+                };
+                pointersRef.current.clear();
+                return;
+            }
+            if (e.touches.length === 0) {
+                pointersRef.current.clear();
+                if (e.type === 'touchcancel') {
+                    if (touchSnapshotRef.current && !runningRef.current) {
+                        stateRef.current = cloneBodies(touchSnapshotRef.current);
+                    }
+                    dragRef.current = { kind: 'none' };
+                } else if (dragRef.current.kind === 'pinch') {
+                    dragRef.current = { kind: 'none' };
+                }
+                touchSnapshotRef.current = null;
+            }
+        };
+
+        const handleGesture = (e) => {
+            e.preventDefault();
+        };
+
+        const handleWindowBlur = () => {
+            pointersRef.current.clear();
+            if (dragRef.current.kind === 'pinch') {
+                dragRef.current = { kind: 'none' };
+            }
+            touchSnapshotRef.current = null;
+        };
+
         canvas.addEventListener('wheel', handleNativeWheel, { passive: false });
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+        canvas.addEventListener('gesturestart', handleGesture, { passive: false });
+        canvas.addEventListener('gesturechange', handleGesture, { passive: false });
+        canvas.addEventListener('gestureend', handleGesture, { passive: false });
+        window.addEventListener('blur', handleWindowBlur);
 
         return () => {
             cancelAnimationFrame(raf);
             window.removeEventListener('resize', resize);
             canvas.removeEventListener('wheel', handleNativeWheel);
+            canvas.removeEventListener('touchstart', handleTouchStart);
+            canvas.removeEventListener('touchmove', handleTouchMove);
+            canvas.removeEventListener('touchend', handleTouchEnd);
+            canvas.removeEventListener('touchcancel', handleTouchEnd);
+            canvas.removeEventListener('gesturestart', handleGesture);
+            canvas.removeEventListener('gesturechange', handleGesture);
+            canvas.removeEventListener('gestureend', handleGesture);
+            window.removeEventListener('blur', handleWindowBlur);
         };
     }, [syncTimeText, processStep, updateOutcome, refreshStatsView]);
 
@@ -1025,19 +1145,20 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     };
 
     const handlePointerDown = (e) => {
-        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.stats-panel')) return;
+        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.stats-panel') || e.target.closest('.analytics-reopen')) return;
         setMenu(null);
-        e.currentTarget.setPointerCapture(e.pointerId);
+        if (e.pointerType !== 'touch') e.currentTarget.setPointerCapture(e.pointerId);
 
         const mousePos = getMousePos(e);
 
         if (e.pointerType === 'touch') {
             const pointers = pointersRef.current;
+            if (dragRef.current.kind === 'pinch') return;
             if (pointers.size === 0) touchSnapshotRef.current = cloneBodies(stateRef.current);
             pointers.set(e.pointerId, mousePos);
             if (pointers.size >= 2) {
                 if (touchSnapshotRef.current && !runningRef.current) stateRef.current = cloneBodies(touchSnapshotRef.current);
-                dragRef.current = { kind: 'pinch', camera: { ...cameraRef.current }, points: [...pointers.values()].slice(0, 2) };
+                dragRef.current = { kind: 'pinch', pinchSource: 'pointer', camera: { ...cameraRef.current }, points: [...pointers.values()].slice(0, 2) };
                 lastTapRef.current = { time: 0, index: null };
                 return;
             }
@@ -1096,6 +1217,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         const mousePos = getMousePos(e);
         if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, mousePos);
         if (drag.kind === 'pinch') {
+            if (drag.pinchSource === 'touch') return;
             const points = [...pointersRef.current.values()].slice(0, 2);
             if (points.length === 2) {
                 const rect = canvasRef.current.getBoundingClientRect();
@@ -1157,12 +1279,12 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     };
 
     const handlePointerUp = (e) => {
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+        if (e.pointerType !== 'touch' && e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
         const drag = dragRef.current;
         pointersRef.current.delete(e.pointerId);
         if (drag.kind === 'pinch') {
             // Keep the gesture isolated until every finger has lifted.
-            if (pointersRef.current.size === 0) dragRef.current = { kind: 'none' };
+            if (drag.pinchSource !== 'touch' && pointersRef.current.size === 0) dragRef.current = { kind: 'none' };
             setHoverCursor(null);
             return;
         }
@@ -1197,7 +1319,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     };
 
     const handleDoubleClick = (e) => {
-        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.stats-panel')) return;
+        if (e.target.closest('.body-menu') || e.target.closest('.sim-panel-wrapper') || e.target.closest('.stats-panel') || e.target.closest('.analytics-reopen')) return;
         const mousePos = getMousePos(e);
         const index = hitBody(mousePos);
         openBodyMenu(index);
@@ -1260,11 +1382,12 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
 
             {simulationError && <div role="alert" className="simulation-error">{simulationError}</div>}
 
-            {showStats ? <StatsPanel collisions={collisions} running={running} exactSolution={Boolean(configuration.exactSolution) && !collisions && !numericalExperiment} stability={stability} stats={statsView} onClose={() => toggleStats(false)} /> :
+            {showStats ? <StatsPanel stats={statsView} onClose={() => toggleStats(false)} /> :
                 <button type="button" className="analytics-reopen" aria-label="Показать аналитику" onClick={() => toggleStats(true)}>◷ Аналитика</button>}
 
             <ControlPanel
-                onOpenCatalog={onOpenCatalog}
+                isPanelCollapsed={isPanelCollapsed}
+                setIsPanelCollapsed={setIsPanelCollapsed}
                 configuration={configuration}
                 running={running}
                 setRunning={toggleRunning}
