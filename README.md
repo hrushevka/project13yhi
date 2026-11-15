@@ -2,7 +2,15 @@
 
 Симуляция проблемы Трёх космических тел.
 
-<img src="src/assets/Cosmos lab.gif" alt="Пример GIF" style="width: 100%; height: auto;">
+<img src="src/assets/Cosmos lab.gif" alt="Пример GIF" class="full-width-gif">
+
+<style>
+.full-width-gif {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+</style>
 
 На сайте представленна симуляция - песочница, с большим количеством стагдартных конфигурация, детерминированой и проработаной физикой.
 
