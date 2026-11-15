@@ -60,7 +60,6 @@ export function OrbitCatalog({ activePreset, onSelect, onClose }) {
                     <div className="catalog-active-row">
                         <OrbitPreview name={activePreset.name} />
                         <div className="orbit-selection-copy">
-                            <span className="eyebrow">{activePreset.group}</span>
                             <strong>{activePreset.name}</strong>
                             <span className="orbit-description">{activePreset.description}</span>
                         </div>
@@ -94,13 +93,6 @@ export function OrbitCatalog({ activePreset, onSelect, onClose }) {
                         >
                             <OrbitPreview name={p.name} />
                             <span>{p.name}</span>
-                            <small>
-                                {p.solution
-                                    ? 'Точное решение'
-                                    : p.period
-                                        ? `Период ≈ ${p.period.toFixed(2)}`
-                                        : 'Орбита'}
-                            </small>
                         </button>
                     ))}
                 </div>

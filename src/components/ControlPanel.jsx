@@ -3,7 +3,6 @@ import { RangeNumber } from './RangeNumber';
 export function ControlPanel({
     isPanelCollapsed,
     setIsPanelCollapsed,
-    configuration,
     running,
     setRunning,
     bodyCount,
@@ -18,8 +17,6 @@ export function ControlPanel({
     onClear,
     onOpenSimulation,
 }) {
-    const isPresetCollisionsLocked = Boolean(configuration?.isPreset);
-
     return (
         <div className={`sim-panel-wrapper ${isPanelCollapsed ? 'collapsed' : ''}`}>
             <section className="sim-panel" aria-label="Управление симуляцией">
@@ -76,14 +73,10 @@ export function ControlPanel({
                         </div>
 
                         <div className="sim-row sim-options">
-                            <label
-                                className="cosmos-checkbox"
-                                title={isPresetCollisionsLocked ? 'Для выбранного пресета режим столкновений определяется автоматически' : undefined}
-                            >
+                            <label className="cosmos-checkbox">
                                 <input
                                     type="checkbox"
                                     checked={collisions}
-                                    disabled={isPresetCollisionsLocked}
                                     onChange={(e) => onCollisionsChange(e.target.checked)}
                                 />
                                 <span className="cosmos-checkbox-box" aria-hidden="true">
@@ -93,7 +86,7 @@ export function ControlPanel({
                                         </svg>
                                     )}
                                 </span>
-                                <span>Столкновения{isPresetCollisionsLocked ? ' (авто)' : ''}</span>
+                                <span>Столкновения</span>
                             </label>
                         </div>
                     </div>

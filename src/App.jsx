@@ -12,12 +12,33 @@ function readTheme() {
     catch { return 'dark'; }
 }
 
+function readInitialShowStats() {
+    if (window.innerWidth < 900) return false;
+    try {
+        const saved = localStorage.getItem('cosmos.analytics');
+        return saved === null ? true : saved === 'true';
+    } catch {
+        return true;
+    }
+}
+
 export function App() {
     const [theme, setTheme] = useState(readTheme);
     const [generation, setGeneration] = useState(0);
     const [catalogOpen, setCatalogOpen] = useState(false);
     const [activePreset, setActivePreset] = useState(PRESETS[0]);
     const [presetCommand, setPresetCommand] = useState({ preset: null, nonce: 0 });
+    const [showStats, setShowStats] = useState(readInitialShowStats);
+
+    const toggleStats = (value) => {
+        setShowStats(value);
+        if (window.innerWidth < 900) return;
+        try {
+            localStorage.setItem('cosmos.analytics', String(value));
+        } catch {
+            return;
+        }
+    };
 
     useLayoutEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -63,6 +84,31 @@ export function App() {
                 <div className="header-single-row">
                     <button
                         type="button"
+                        className={`nav-pill nav-pill-analytics ${showStats ? 'active' : ''}`}
+                        onClick={() => toggleStats(!showStats)}
+                        aria-pressed={showStats}
+                        aria-label="Аналитика"
+                        title="Аналитика"
+                    >
+                        <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.9"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M3 3v18h18" />
+                            <path d="M7 14l4-4 4 3 5-6" />
+                        </svg>
+                        <span>Аналитика</span>
+                    </button>
+
+                    <button
+                        type="button"
                         className={`nav-pill nav-pill-catalog ${catalogOpen ? 'active' : ''}`}
                         onClick={() => setCatalogOpen((prev) => !prev)}
                         aria-expanded={catalogOpen}
@@ -85,30 +131,6 @@ export function App() {
                         </svg>
                         <span>Каталог</span>
                         <span className="count-badge">{PRESETS.length}</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        className="nav-pill nav-pill-home"
-                        onClick={resetWorkspace}
-                        aria-label="Домой"
-                        title="Домой"
-                    >
-                        <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.9"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M3 10.5 12 3l9 7.5" />
-                            <path d="M5.5 9.5V21h13V9.5" />
-                        </svg>
-                        <span className="nav-pill-label">Домой</span>
                     </button>
 
                     <button
@@ -189,6 +211,8 @@ export function App() {
                         theme={theme}
                         presetCommand={presetCommand}
                         onActivePresetChange={setActivePreset}
+                        showStats={showStats}
+                        onToggleStats={toggleStats}
                     />
                 </div>
             </ErrorBoundary>

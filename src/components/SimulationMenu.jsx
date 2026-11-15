@@ -25,6 +25,11 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [hoverT, setHoverT] = useState(null);
+    const viewRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
+    const touchGestureRef = useRef(null);
+    useEffect(() => {
+        viewRef.current = { zoom, pan };
+    }, [zoom, pan]);
 
     const width = isExpanded ? 820 : 280;
     const height = isExpanded ? 165 : 126;
@@ -114,8 +119,139 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
             applyZoom(factor, relX, relY);
         };
 
+        const toChartRel = (clientX, clientY, rect) => {
+            const svgX = ((clientX - rect.left) / Math.max(1, rect.width)) * width;
+            const svgY = ((clientY - rect.top) / Math.max(1, rect.height)) * height;
+            return {
+                x: Math.min(1, Math.max(0, (svgX - padL) / plotW)),
+                y: Math.min(1, Math.max(0, 1 - (svgY - padT) / plotH)),
+            };
+        };
+
+        const startPinch = (touches, rect) => {
+            const t0 = touches[0];
+            const t1 = touches[1];
+            const mid = toChartRel((t0.clientX + t1.clientX) / 2, (t0.clientY + t1.clientY) / 2, rect);
+            const { zoom: startZoom, pan: startPan } = viewRef.current;
+            touchGestureRef.current = {
+                kind: 'pinch',
+                ids: [t0.identifier, t1.identifier],
+                startDist: Math.max(1, Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)),
+                startZoom,
+                anchorX: startPan.x + mid.x / startZoom,
+                anchorY: startPan.y + mid.y / startZoom,
+            };
+        };
+
+        const onTouchStart = (e) => {
+            e.stopPropagation();
+            if (e.touches.length >= 2) {
+                e.preventDefault();
+                startPinch(e.touches, el.getBoundingClientRect());
+                return;
+            }
+            if (e.touches.length === 1 && viewRef.current.zoom > 1) {
+                const t = e.touches[0];
+                touchGestureRef.current = {
+                    kind: 'pan',
+                    startX: t.clientX,
+                    startY: t.clientY,
+                    startPan: { ...viewRef.current.pan },
+                    startZoom: viewRef.current.zoom,
+                };
+            }
+        };
+
+        const onTouchMove = (e) => {
+            e.stopPropagation();
+            if (e.touches.length >= 2) {
+                e.preventDefault();
+                const rect = el.getBoundingClientRect();
+                const g = touchGestureRef.current;
+                if (!g || g.kind !== 'pinch') {
+                    startPinch(e.touches, rect);
+                    return;
+                }
+                const list = Array.from(e.touches);
+                const first = list.find((t) => t.identifier === g.ids[0]);
+                const second = list.find((t) => t.identifier === g.ids[1]);
+                if (!first || !second) {
+                    startPinch(e.touches, rect);
+                    return;
+                }
+                const dist = Math.max(1, Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY));
+                const mid = toChartRel((first.clientX + second.clientX) / 2, (first.clientY + second.clientY) / 2, rect);
+                const nextZoom = Math.min(25, Math.max(1, roundFloat(g.startZoom * (dist / g.startDist), 3)));
+                if (nextZoom <= 1) {
+                    setZoom(1);
+                    setPan({ x: 0, y: 0 });
+                } else {
+                    const maxOffset = Math.max(0, 1 - 1 / nextZoom);
+                    setZoom(nextZoom);
+                    setPan({
+                        x: Math.min(maxOffset, Math.max(0, g.anchorX - mid.x / nextZoom)),
+                        y: Math.min(maxOffset, Math.max(0, g.anchorY - mid.y / nextZoom)),
+                    });
+                }
+                return;
+            }
+            const g = touchGestureRef.current;
+            if (e.touches.length === 1 && g?.kind === 'pan' && viewRef.current.zoom > 1) {
+                e.preventDefault();
+                const rect = el.getBoundingClientRect();
+                const t = e.touches[0];
+                const dxSvg = ((t.clientX - g.startX) / Math.max(1, rect.width)) * width;
+                const dySvg = ((t.clientY - g.startY) / Math.max(1, rect.height)) * height;
+                const maxOffset = Math.max(0, 1 - 1 / g.startZoom);
+                setPan({
+                    x: Math.min(maxOffset, Math.max(0, g.startPan.x - dxSvg / plotW / g.startZoom)),
+                    y: Math.min(maxOffset, Math.max(0, g.startPan.y + dySvg / plotH / g.startZoom)),
+                });
+                return;
+            }
+            if (g?.kind === 'pinch' || g?.kind === 'pinch-hold') {
+                e.preventDefault();
+            }
+        };
+
+        const onTouchEnd = (e) => {
+            e.stopPropagation();
+            if (e.touches.length >= 2) {
+                startPinch(e.touches, el.getBoundingClientRect());
+                return;
+            }
+            if (e.touches.length === 1) {
+                if (touchGestureRef.current?.kind === 'pinch' || touchGestureRef.current?.kind === 'pinch-hold') {
+                    touchGestureRef.current = { kind: 'pinch-hold' };
+                }
+                return;
+            }
+            touchGestureRef.current = null;
+        };
+
+        const onGesture = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
         el.addEventListener('wheel', onWheel, { passive: false });
-        return () => el.removeEventListener('wheel', onWheel);
+        el.addEventListener('touchstart', onTouchStart, { passive: false });
+        el.addEventListener('touchmove', onTouchMove, { passive: false });
+        el.addEventListener('touchend', onTouchEnd, { passive: false });
+        el.addEventListener('touchcancel', onTouchEnd, { passive: false });
+        el.addEventListener('gesturestart', onGesture, { passive: false });
+        el.addEventListener('gesturechange', onGesture, { passive: false });
+        el.addEventListener('gestureend', onGesture, { passive: false });
+        return () => {
+            el.removeEventListener('wheel', onWheel);
+            el.removeEventListener('touchstart', onTouchStart);
+            el.removeEventListener('touchmove', onTouchMove);
+            el.removeEventListener('touchend', onTouchEnd);
+            el.removeEventListener('touchcancel', onTouchEnd);
+            el.removeEventListener('gesturestart', onGesture);
+            el.removeEventListener('gesturechange', onGesture);
+            el.removeEventListener('gestureend', onGesture);
+        };
     }, [width, height, plotW, plotH]);
 
     const handleSvgPointerDown = (e) => {
@@ -306,8 +442,8 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
     );
 }
 
-export function SimulationSetupMenu({ onStart, onClose, exactAvailable = false }) {
-    const [numerical, setNumerical] = useState(false);
+export function SimulationSetupMenu({ onStart, onClose }) {
+
     const modalRef = useRef(null);
     const [pos, setPos] = useState(() => ({
         x: Math.max(8, Math.floor((window.innerWidth - Math.min(310, window.innerWidth - 16)) / 2)),
@@ -402,7 +538,7 @@ export function SimulationSetupMenu({ onStart, onClose, exactAvailable = false }
                     />
                 </div>
 
-                {exactAvailable && <label className="solution-note"><input type="checkbox" checked={numerical} onChange={e => setNumerical(e.target.checked)} /> Проверить численно вместо точной орбиты (возможен распад)</label>}
+
                 <div className="sim-expect-group">
                     <label>Ожидаемый результат</label>
                     <div className="sim-expect-options">
@@ -427,7 +563,7 @@ export function SimulationSetupMenu({ onStart, onClose, exactAvailable = false }
                 <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => onStart(Math.max(0.5, toFloat(targetTime, 10)), expectedOutcome, numerical)}
+                    onClick={() => onStart(Math.max(0.5, toFloat(targetTime, 10)), expectedOutcome)}
                 >
                     Запустить
                 </button>
@@ -577,7 +713,7 @@ export function SimulationReportModal({ report, onClose }) {
             onPointerCancel={handlePointerUp}
         >
             <div className="body-menu-header">
-                <span>Статистика и графики (колесо — зум, ЛКМ — сдвиг)</span>
+                <span>Статистика и графики<span className="sim-report-hint"> (колесо — зум, ЛКМ — сдвиг)</span></span>
                 <button type="button" onClick={onClose} aria-label="Закрыть">×</button>
             </div>
 

@@ -65,8 +65,9 @@ function getVelocityHandleScreenPos(b, sx, sy, k, r) {
     const tipY = sy - b.vy * VEL_SCALE * k;
     const distPx = Math.hypot(tipX - sx, tipY - sy);
     const isZero = Math.hypot(b.vx, b.vy) < 1e-4;
-    if (isZero || distPx < r + 4) {
-        const angle = isZero ? 0 : Math.atan2(tipY - sy, tipX - sx);
+    if (isZero) return { x: sx, y: sy, isZero: true, extended: false };
+    if (distPx < r + 4) {
+        const angle = Math.atan2(tipY - sy, tipX - sx);
         const offset = r + Math.max(10, 12 * (k / BASE_ZOOM));
         return {
             x: sx + Math.cos(angle) * offset,
@@ -163,7 +164,7 @@ function readCanvasPalette() {
     };
 }
 
-export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePresetChange }) {
+export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePresetChange, showStats: controlledShowStats, onToggleStats }) {
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
     const paletteRef = useRef(null);
@@ -201,13 +202,15 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     const [bodyCount, setBodyCount] = useState(FALLBACK_PRESET.bodies.length);
     const [menu, setMenu] = useState(null);
     const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-    const [showStats, setShowStats] = useState(() => {
+    const [internalShowStats, setInternalShowStats] = useState(() => {
         if (window.innerWidth < 900) return false;
         try { const saved = localStorage.getItem('cosmos.analytics'); return saved === null ? true : saved === 'true'; }
         catch { return true; }
     });
+    const showStats = controlledShowStats ?? internalShowStats;
     const toggleStats = (value) => {
-        setShowStats(value);
+        if (onToggleStats) { onToggleStats(value); return undefined; }
+        setInternalShowStats(value);
         if (window.innerWidth < 900) return undefined;
         try { localStorage.setItem('cosmos.analytics', String(value)); } catch { return undefined; }
         return undefined;
@@ -818,29 +821,6 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                 ctx.globalAlpha = 1.0;
             }
 
-            // Hide measurements when playback or screen motion makes them unreadable.
-            if (speedRef.current <= 2 && stateRef.current.every(b => Math.hypot(b.vx, b.vy) * k * speedRef.current <= 500)) {
-                ctx.save();
-                ctx.font = '12px monospace';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                stateRef.current.forEach((a, i) => {
-                    stateRef.current.slice(i + 1).forEach((b, offset) => {
-                        const x = cx + (a.x + b.x) * k / 2;
-                        const y = cy - (a.y + b.y) * k / 2 - 16;
-                        const label = `${i + 1}–${i + offset + 2}: ${Math.hypot(a.x - b.x, a.y - b.y).toFixed(2)} у.е.`;
-                        const w = ctx.measureText(label).width + 12;
-                        ctx.fillStyle = palette.handleStroke;
-                        ctx.globalAlpha = .88;
-                        ctx.fillRect(x - w / 2, y - 10, w, 20);
-                        ctx.globalAlpha = 1;
-                        ctx.fillStyle = palette.textPrimary;
-                        ctx.fillText(label, x, y);
-                    });
-                });
-                ctx.restore();
-            }
-
             stateRef.current.forEach((b, i) => {
                 const sx = cx + b.x * k;
                 const sy = cy - b.y * k;
@@ -909,7 +889,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                         ctx.globalAlpha = 1.0;
                     }
 
-                    const dotRadius = Math.max(4, 4.5 * lineScale);
+                    const dotRadius = handle.isZero ? Math.max(3, Math.min(4.5 * lineScale, r * 0.55)) : Math.max(4, 4.5 * lineScale);
                     ctx.fillStyle = palette.handleFill;
                     ctx.strokeStyle = palette.handleStroke;
                     ctx.lineWidth = 1.5;
@@ -1109,7 +1089,8 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             const p = toScreen(bodies[i]);
             const r = Math.max(2, (bodies[i].r ?? 0.05 * Math.cbrt(bodies[i].m)) * k);
             const handle = getVelocityHandleScreenPos(bodies[i], p.x, p.y, k, r);
-            if (Math.hypot(mousePos.x - handle.x, mousePos.y - handle.y) <= hitRadius) {
+            const targetRadius = handle.isZero ? Math.min(hitRadius, Math.max(5.5, r * 0.55)) : hitRadius;
+            if (Math.hypot(mousePos.x - handle.x, mousePos.y - handle.y) <= targetRadius) {
                 return i;
             }
         }
@@ -1368,7 +1349,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             </div>
                 {showSimSetup && (
                     <SimulationSetupMenu
-                        exactAvailable={Boolean(configuration.exactSolution)}
+
                         onStart={startTimedSimulation}
                         onClose={() => setShowSimSetup(false)}
                     />
@@ -1383,12 +1364,12 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             {simulationError && <div role="alert" className="simulation-error">{simulationError}</div>}
 
             {showStats ? <StatsPanel stats={statsView} onClose={() => toggleStats(false)} /> :
-                <button type="button" className="analytics-reopen" aria-label="Показать аналитику" onClick={() => toggleStats(true)}>◷ Аналитика</button>}
+                <button type="button" className="analytics-reopen" aria-label="Показать аналитику" onClick={() => toggleStats(true)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><path d="M7 14l4-4 4 3 5-6" /></svg><span>Аналитика</span></button>}
 
             <ControlPanel
                 isPanelCollapsed={isPanelCollapsed}
                 setIsPanelCollapsed={setIsPanelCollapsed}
-                configuration={configuration}
+
                 running={running}
                 setRunning={toggleRunning}
                 bodyCount={bodyCount}
@@ -1399,7 +1380,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                 setGravity={(value) => { if (value !== gravityRef.current) invalidatePreset(); gravityRef.current = value; setGravity(value); refreshForecast(); }}
                 collisions={collisions}
                 onCollisionsChange={(enabled) => {
-                    if (autoCollisionsRef.current) return;
+                    autoCollisionsRef.current = false;
                     collisionsRef.current = enabled;
                     setCollisions(enabled);
                 }}
