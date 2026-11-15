@@ -9,8 +9,8 @@ import {
     totalEnergy,
 } from '../utils/physics';
 import { PRESETS } from '../utils/presets';
-import { preparePeriodicOrbit, evaluatePeriodicOrbit } from '../utils/periodic-orbits';
 import { evaluateCentralOrbit } from '../utils/orbits';
+import { forecastStability } from '../utils/stability';
 import { classify } from '../utils/classifier';
 import { createStats, resetStats, sampleStats, liveMetrics } from '../utils/stats';
 import { BodyMenu } from './BodyMenu';
@@ -131,7 +131,7 @@ function attachContactRadius(body, idx) {
     return {
         ...body,
         r: Math.max(0.01, 0.09 * Math.cbrt(mass)),
-        id: body.id || `body-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+        id: body.id ?? `body-${idx}`,
     };
 }
 
@@ -191,8 +191,6 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     const [simReport, setSimReport] = useState(null);
     const [hoverCursor, setHoverCursor] = useState(null);
     const activeSimSessionRef = useRef(null);
-    const loopModeRef = useRef(false);
-    const periodicOrbitRef = useRef(null);
     const presetRef = useRef(PRESETS[0]);
     const setupPresetRef = useRef(PRESETS[0]);
     const exactModeRef = useRef(false);
@@ -247,9 +245,12 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     const pointersRef = useRef(new Map());
     const touchSnapshotRef = useRef(null);
     const selectedRef = useRef(null);
+    const nextBodyIdRef = useRef(3);
+    const followRef = useRef(null);
+    const [followId, setFollowId] = useState(null);
     const forecastRevision = useRef(0);
     const autoCollisionsRef = useRef(true);
-    const [, setNumericalExperiment] = useState(false);
+    const [numericalExperiment, setNumericalExperiment] = useState(false);
     const [configuration, setConfiguration] = useState(() => ({
         revision: 0,
         isPreset: true,
@@ -272,12 +273,19 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         });
     }, []);
     const applyStabilityResult = useCallback((kind, revision) => {
-        if (revision !== forecastRevision.current || !autoCollisionsRef.current || activeSimSessionRef.current) return;
+        if (revision !== forecastRevision.current || !autoCollisionsRef.current || activeSimSessionRef.current || runningRef.current) return;
         const enabled = kind === 'stable' && !exactModeRef.current;
         collisionsRef.current = enabled;
         setCollisions(enabled);
     }, []);
-    useStabilityForecast(configuration, applyStabilityResult);
+    const prepareRunCollisions = useCallback(() => {
+        if (!autoCollisionsRef.current) return;
+        const enabled = !exactModeRef.current && forecastStability(configuration).kind === 'stable';
+        collisionsRef.current = enabled;
+        setCollisions(enabled);
+    }, [configuration]);
+
+    const stability = useStabilityForecast(configuration, applyStabilityResult);
 
     useEffect(() => {
         onActivePresetChangeRef.current?.(PRESETS[0]);
@@ -295,6 +303,10 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     useEffect(() => { syncTimeText(); });
 
     const refreshStatsView = useCallback(() => {
+        if (followRef.current && !stateRef.current.some(b => b.id === followRef.current)) {
+            followRef.current = null;
+            setFollowId(null);
+        }
         setStatsView({ ...statsRef.current, live: liveMetrics(stateRef.current, setupRef.current), distanceHistory: [...statsRef.current.distanceHistory] });
     }, []);
 
@@ -307,7 +319,6 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         presetRef.current = null;
         setupPresetRef.current = null;
         exactModeRef.current = false;
-        loopModeRef.current = false;
         onActivePresetChangeRef.current?.(null);
     }, []);
 
@@ -328,11 +339,8 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
     }, [syncTimeText, resetMeta, refreshStatsView, invalidatePreset, refreshForecast]);
 
     const setNewBodies = useCallback((preset) => {
-        let periodicOrbit = null;
-        try { if (preset.period) periodicOrbit = preparePeriodicOrbit(preset); }
-        catch (error) { setSimulationError(error.message); return; }
-        periodicOrbitRef.current = periodicOrbit;
-        loopModeRef.current = false;
+        nextBodyIdRef.current = 3;
+        followRef.current = null; setFollowId(null);
         const { bodies, g, softening: softeningValue, dt: newDt, lockCM: lock } = preset;
         presetRef.current = preset;
         setupPresetRef.current = preset;
@@ -360,7 +368,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         softeningRef.current = softeningValue ?? 0;
         lockCMRef.current = !!lock;
 
-        cameraRef.current = { x: 0, y: 0, zoom: fittedZoom(periodicOrbit ? { ...preset, extent: periodicOrbit.extent } : preset, bodies, window.innerWidth, window.innerHeight) };
+        cameraRef.current = { x: 0, y: 0, zoom: fittedZoom(preset, bodies, window.innerWidth, window.innerHeight) };
         resetMeta();
         resetStats(statsRef.current, stateRef.current, g, softeningValue ?? 0, cleanDt);
         syncTimeText();
@@ -389,8 +397,8 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         presetRef.current = session.savedPreset;
         setupPresetRef.current = session.savedSetupPreset;
         exactModeRef.current = session.savedExact;
-        loopModeRef.current = session.savedLoop;
-        periodicOrbitRef.current = session.savedPeriodicOrbit;
+        collisionsRef.current = session.savedCollisions;
+        setCollisions(session.savedCollisions);
         onActivePresetChangeRef.current?.(session.savedPreset);
 
         stateRef.current = cloneBodies(session.savedState);
@@ -443,13 +451,11 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         const savedPreset = presetRef.current;
         const savedSetupPreset = setupPresetRef.current;
         const savedExact = exactModeRef.current;
-        const savedLoop = loopModeRef.current;
-        const savedPeriodicOrbit = periodicOrbitRef.current;
+        const savedCollisions = collisionsRef.current;
 
-        // Exact presets retain their analytic trajectory unless numerical testing is requested.
         exactModeRef.current = Boolean(setupPresetRef.current?.solution) && !numerical;
-        loopModeRef.current = false;
 
+        prepareRunCollisions();
         const startBodies = cloneBodies(setupRef.current.length >= 2 ? setupRef.current : stateRef.current);
         if (lockCMRef.current) recenterToCM(startBodies);
         stateRef.current = startBodies;
@@ -488,13 +494,12 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             savedPreset,
             savedSetupPreset,
             savedExact,
-            savedLoop,
-            savedPeriodicOrbit,
+            savedCollisions,
         };
 
         runningRef.current = true;
         setRunning(true);
-    }, [outcome, resetMeta, syncTimeText, refreshStatsView]);
+    }, [outcome, resetMeta, syncTimeText, refreshStatsView, prepareRunCollisions]);
 
     const processStep = useCallback((H) => {
         const bounded = boundedStep(simTimeRef.current, H, activeSimSessionRef.current?.targetTime);
@@ -504,10 +509,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         const before = cloneBodies(state);
         let result;
         try {
-            if (loopModeRef.current && periodicOrbitRef.current) {
-                evaluatePeriodicOrbit(periodicOrbitRef.current, simTimeRef.current + H, state);
-                result = { events: [] };
-            } else if (exactModeRef.current && !collisionsRef.current && presetRef.current?.solution) {
+            if (exactModeRef.current && !collisionsRef.current && presetRef.current?.solution) {
                 evaluateCentralOrbit(presetRef.current, simTimeRef.current + H, state);
                 result = { events: [] };
             } else result = stepSimulation(state, gravityRef.current, softeningRef.current, H, {
@@ -605,11 +607,12 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             finishTimedSimulation(session, status === 'unknown' ? 'stable' : status);
             return;
         }
+        if (nextRunning) prepareRunCollisions();
         runningRef.current = nextRunning;
         accumulatorRef.current = 0;
         setRunning(nextRunning);
         if (!nextRunning) refreshStatsView();
-    }, [finishTimedSimulation, refreshStatsView]);
+    }, [finishTimedSimulation, refreshStatsView, prepareRunCollisions]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -671,7 +674,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             accumulatorRef.current += wallSeconds * speedRef.current;
             const stepCount = Math.min(2000, Math.floor(accumulatorRef.current / H));
             accumulatorRef.current -= stepCount * H;
-            // Drop excess wall time under load instead of freezing the browser catching up.
+            
             accumulatorRef.current = Math.min(accumulatorRef.current, H);
 
             for (let s = 0; s < stepCount; s++) {
@@ -697,6 +700,11 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         const draw = () => {
             const width = cachedWidth;
             const height = cachedHeight;
+            const followed = stateRef.current.find(b => b.id === followRef.current);
+            if (followed) {
+                cameraRef.current.x = -followed.x * cameraRef.current.zoom;
+                cameraRef.current.y = followed.y * cameraRef.current.zoom;
+            }
             const cx = width / 2 + cameraRef.current.x;
             const cy = height * 0.35 + cameraRef.current.y;
             const k = cameraRef.current.zoom;
@@ -1178,7 +1186,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
                 const idx = stateRef.current.length;
                 stateRef.current = [
                     ...stateRef.current,
-                    attachContactRadius({ m: 1, x: roundFloat(world.x, 4), y: roundFloat(world.y, 4), vx: 0, vy: 0 }, idx),
+                    attachContactRadius({ m: 1, x: roundFloat(world.x, 4), y: roundFloat(world.y, 4), vx: 0, vy: 0 }, nextBodyIdRef.current++),
                 ];
                 commitEdit();
                 dragRef.current = { kind: 'velocity', index: idx, startX: mousePos.x, startY: mousePos.y, moved: false };
@@ -1277,7 +1285,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
         }
         if (drag.kind === 'touch-add' && !drag.moved && stateRef.current.length < MAX_BODIES) {
             const world = toWorld(getMousePos(e));
-            stateRef.current = [...stateRef.current, attachContactRadius({ m: 1, x: roundFloat(world.x, 4), y: roundFloat(world.y, 4), vx: 0, vy: 0 }, stateRef.current.length)];
+            stateRef.current = [...stateRef.current, attachContactRadius({ m: 1, x: roundFloat(world.x, 4), y: roundFloat(world.y, 4), vx: 0, vy: 0 }, nextBodyIdRef.current++)];
             commitEdit();
         }
         if (drag.kind === 'move') {
@@ -1349,6 +1357,7 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
             </div>
                 {showSimSetup && (
                     <SimulationSetupMenu
+                        exactAvailable={Boolean(configuration.exactSolution)}
 
                         onStart={startTimedSimulation}
                         onClose={() => setShowSimSetup(false)}
@@ -1363,10 +1372,19 @@ export function HolstCanvas({ theme = 'dark', presetCommand = null, onActivePres
 
             {simulationError && <div role="alert" className="simulation-error">{simulationError}</div>}
 
-            {showStats ? <StatsPanel stats={statsView} onClose={() => toggleStats(false)} /> :
+            {showStats ? <StatsPanel stability={stability} exactSolution={Boolean(configuration.exactSolution) && !collisions && !numericalExperiment} stats={statsView} onClose={() => toggleStats(false)} /> :
                 <button type="button" className="analytics-reopen" aria-label="Показать аналитику" onClick={() => toggleStats(true)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><path d="M7 14l4-4 4 3 5-6" /></svg><span>Аналитика</span></button>}
 
             <ControlPanel
+                cameraControls={<>
+            <div className="sim-row sim-options" onPointerDown={e => e.stopPropagation()}>
+                <label>Камера <select aria-label="Следовать за планетой" value={followId ?? ''} onChange={e => { const id = e.target.value || null; followRef.current = id; setFollowId(id); }}>
+                    <option value="">Свободная</option>
+                    {statsView.live?.speeds.map(b => <option key={b.id} value={b.id}>Планета {b.label}</option>)}
+                </select></label>
+                <button onClick={() => { followRef.current = null; setFollowId(null); cameraRef.current = { x: 0, y: 0, zoom: fittedZoom(presetRef.current, stateRef.current, window.innerWidth, window.innerHeight) }; }}>Вся система</button>
+            </div>
+                </>}
                 isPanelCollapsed={isPanelCollapsed}
                 setIsPanelCollapsed={setIsPanelCollapsed}
 

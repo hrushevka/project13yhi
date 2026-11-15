@@ -1,5 +1,5 @@
-﻿// Exact homographic Newtonian solutions. Initial positions are at periapsis.
-// For e=0 this reduces to uniform rotation; e>0 follows Kepler's equation.
+﻿
+
 export function evaluateCentralOrbit(preset, time, state) {
     const { omega, eccentricity: e = 0 } = preset.solution;
     const n = omega * (1 - e) ** 1.5;

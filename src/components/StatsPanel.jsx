@@ -89,7 +89,7 @@ function DistanceChart({ history, height = 80 }) {
 
 const RESIZE_DIRS = ['w', 'e', 's', 'sw', 'se'];
 
-export function StatsPanel({ stats, final = false, onClose }) {
+export function StatsPanel({ stats, final = false, onClose, stability, exactSolution = false }) {
     const s = getSummary(stats);
     const panelRef = useRef(null);
     const customizedRef = useRef(false);
@@ -221,6 +221,14 @@ export function StatsPanel({ stats, final = false, onClose }) {
             </div>
 
             <div className="stats-body">
+                <div className="stats-section">
+                    <div className="stats-section-title">Сейчас</div>
+                    <div className="stats-row"><span>Расчёт</span><b>{exactSolution ? 'Точная орбита' : 'Численный'}</b></div>
+                    <div className="stats-row"><span>Размер системы</span><b>{fmt(stats.live?.sizeRatio, 2)} ×</b></div>
+                    {stats.live?.pairs.map(pair => <div className="stats-row" key={pair.label}><span>Зазор {pair.label}</span><b>{fmt(pair.gap)} · {Math.abs(pair.radialSpeed) < .001 ? '≈' : pair.radialSpeed < 0 ? '↘' : '↗'}</b></div>)}
+                    {stats.live?.speeds.map(body => <div className="stats-row" key={body.label}><span>Скорость Т{body.label}</span><b>{fmt(body.speed)}</b></div>)}
+                </div>
+                {stability && <div className="stats-section"><div className="stats-section-title">Прогноз начальной конфигурации</div><div className="stats-row"><span>{stability.text}</span></div></div>}
                 <div className="stats-section">
                     <div className="stats-section-title">Время</div>
                     <div className="stats-row"><span>Прошло</span><b>{fmtTime(s.elapsed)}</b></div>

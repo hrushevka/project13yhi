@@ -6,6 +6,10 @@ The simulator uses dimensionless planar Newtonian gravity:
 
 All built-in presets use `G = 1` and `epsilon = 0`. Displayed body sizes are not gravitational softening lengths. Collisions are optional and off by default, matching the point-mass model used by periodic three-body orbits.
 
+## Repeatability and accuracy
+
+See [the measured accuracy notes](reports/accuracy-notes.md) and [all-preset comparisons](reports/determinism.md). Fixed outer ticks and deterministic start policies isolate the solver from frame timing. Internal step doubling controls a local normalized state difference of 1e-10; this is not a global error guarantee.
+
 ## Why the previous Lagrange orbits fell apart
 
 The previous one-period tests missed long-term instability. At simulation time 100, both numerical Lagrange configurations had undergone a collision. The figure-eight remained bounded.
@@ -45,7 +49,7 @@ The supplied article also discusses restricted and spatial problems. Those requi
 
 The catalog contains 24 presets: seven exact Euler/Lagrange configurations, the numerical figure-eight, and 16 named numerical orbits. The named set includes Butterfly I/II, Moth I/II, Dragonfly, two Yin-Yang variants, Broucke R4, and eight Sheen patterns (Oval/Catface/Starship, Two Ovals, Three Ovals, Ovals with Flourishes, Hand in Hand, Loop-ended Triangles, Skinny Pineapple, and Newton's Cradle). This is a curated set, not an exhaustive catalog of all three-body solutions.
 
-The named orbits default to a visibly labeled **Repeat numerical period** mode. A period is integrated from published initial conditions, with stored frames spaced at most 0.001 time units apart and integration substeps at most 0.0001. Playback integrates the short remainder from the preceding stored frame instead of interpolating close encounters. It does not force the endpoint to match: a maximum position/velocity closure residual above 0.003 in simulation units is rejected. Rounded source data causes a small seam when repeating. Turning repetition off continues unrestricted numerical evolution from the displayed state. Editing bodies or G/softening also disables repetition. Only four prepared trajectories are cached.
+Named numerical orbits run without periodic resetting. Period-preparation helpers remain for preview generation and regression tests; they are not an active playback mode.
 
 Sheen data comes directly from [Matthew Sheen's original examples](https://github.com/mws262/MAE5730_examples/blob/master/3BodySolutions/getSolutionNum.m). Other named initial conditions come from [the Belgrade gallery](http://three-body.ipb.ac.rs/), retrieved through [Ricky Reusser's compilation](https://observablehq.com/@rreusser/periodic-three-body-initial-conditions). Each entry retains its source URL. Positions and velocities are translated into the centre-of-mass frame without changing relative motion.
 

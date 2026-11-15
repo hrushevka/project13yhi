@@ -1,6 +1,5 @@
 import namedOrbits from './named-orbits.json' with { type: 'json' };
 
-// Circular central configurations rotate about their mass-weighted centre.
 function rotatingBodies(points, omega) {
     const mass = points.reduce((sum, b) => sum + b.m, 0);
     const cx = points.reduce((sum, b) => sum + b.m * b.x, 0) / mass;
@@ -14,7 +13,7 @@ function rotatingBodies(points, omega) {
 const softening = 0;
 function lagrange(name, masses, eccentricity = 0) {
     const totalMass = masses.reduce((sum, m) => sum + m, 0);
-    // Equilateral triangle of side one, including Plummer softening.
+    
     const omega = Math.sqrt(totalMass / (1 + softening ** 2) ** 1.5);
     return {
         name, group: 'Классические', g: 1, softening, dt: 0.001,

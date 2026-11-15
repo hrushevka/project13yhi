@@ -36,7 +36,7 @@ function computeAccelerations(n, px, py, pm, G, eps2, ax, ay) {
         for (let j = i + 1; j < n; j++) {
             const dx = px[j] - xi;
             const dy = py[j] - yi;
-            // Защита от деления на 0 и гравитационного "отскока"
+            
             const r2 = dx * dx + dy * dy + eps2;
             if (G === 0) continue;
             if (r2 === 0) throw new RangeError('Coincident point masses require softening or collision radii.');
@@ -169,10 +169,10 @@ export function findEarliestContact(bodies, dt) {
 
             const sq = Math.sqrt(disc);
             if (b >= 0) continue;
-            // Stable entry root avoids subtracting nearly equal numbers at contact.
+            
             const entry = 2 * c / (-b + sq);
-            // Include the endpoint despite accumulated floating-point drift.
-            // This is a time tolerance, not an enlargement of the bodies.
+            
+            
             const tolerance = 1e-12 * Math.max(1, dt);
             if (entry < 0 || entry > dt + tolerance) continue;
             const t = Math.min(dt, entry);
@@ -183,7 +183,7 @@ export function findEarliestContact(bodies, dt) {
     return best;
 }
 
-// Planet mode merges contacts without producing fragments that can collide again.
+
 export const PLANET_COLLISION_OPTIONS = Object.freeze({ vFrag: Infinity });
 
 export function classifyContact(A, B, opts = {}) {
@@ -217,7 +217,7 @@ export function mergePair(bodies, i, j) {
     return { id: A.id, m: M };
 }
 
-let fragmentId = 0;
+
 
 export function fragmentPair(bodies, i, j, opts = {}) {
     const A = bodies[i], B = bodies[j];
@@ -229,7 +229,7 @@ export function fragmentPair(bodies, i, j, opts = {}) {
     const fraction = Math.max(0, Math.min(1, opts.debrisMassFraction ?? 0.5));
     const minMass = Math.max(1e-12, opts.minDebrisMass ?? 1e-4);
     const count = Math.min(64, Math.max(0, Math.floor(opts.nDebris ?? 8)), Math.floor(M * fraction / minMass));
-    // Too little mass to form a symmetric cloud: retain it in one remnant.
+    
     const debrisMass = count >= 2 ? M * fraction : 0;
     const radius = Math.cbrt((A.r || 0) ** 3 + (B.r || 0) ** 3);
     const debris = [];
@@ -238,13 +238,13 @@ export function fragmentPair(bodies, i, j, opts = {}) {
         const r = radius * Math.cbrt(m / M);
         const remnantRadius = radius * Math.cbrt(1 - fraction);
         const ring = Math.max(1e-6, 1.01 * (remnantRadius + r), 1.01 * r / Math.sin(Math.PI / count));
-        // Ejection kinetic energy cannot exceed the impact's relative kinetic energy.
+        
         const relativeSpeed = Math.hypot(B.vx - A.vx, B.vy - A.vy);
         const speed = Math.min(Math.max(0, opts.spread ?? 0.5), relativeSpeed * Math.sqrt(A.m * B.m / (M * debrisMass)));
         for (let k = 0; k < count; k++) {
             const angle = 2 * Math.PI * k / count;
             debris.push({
-                id: 'debris-' + (++fragmentId), m, r, isDebris: true,
+                id: `debris-${A.id ?? i}-${B.id ?? j}-${k}`, m, r, isDebris: true,
                 x: cx + ring * Math.cos(angle), y: cy + ring * Math.sin(angle),
                 vx: cvx + speed * Math.cos(angle), vy: cvy + speed * Math.sin(angle),
             });
@@ -261,8 +261,8 @@ export function fragmentPair(bodies, i, j, opts = {}) {
     return { debris, gas: { x: cx, y: cy, vx: cvx, vy: cvy, mass: 0, life: 1.5, radius } };
 }
 
-// Advance the entire system through the drift interval, resolving contacts in time order.
-// Fragment insertion is owned here; onEvent is a notification only.
+
+
 export function detectAndResolve(bodies, dt, opts = {}) {
     if (!Number.isFinite(dt) || dt < 0) throw new RangeError('Collision interval must be finite and nonnegative.');
     const events = [];
@@ -291,7 +291,7 @@ export function detectAndResolve(bodies, dt, opts = {}) {
         events.push(ev);
         opts.onEvent?.(ev);
     }
-    // Never silently drift through unresolved contacts after the event budget.
+    
     if (events.length === maxEvents && findEarliestContact(bodies, remaining)) {
         throw new RangeError('Collision event limit exceeded; reduce the time step.');
     }
@@ -306,13 +306,13 @@ function validateStep(state, G, softening, dt) {
     if (!isStateFinite(state)) throw new RangeError('Bodies must have finite coordinates and positive masses.');
 }
 
-// Kick-drift-kick Verlet with continuous linear collision detection during drift.
-export function stepSimulation(state, G, softening, dt, opts = {}) {
+
+function integrateStep(state, G, softening, dt, opts = {}) {
     validateStep(state, G, softening, dt);
     if (dt < 0 || dt > 1) throw new RangeError('Simulation time step must be between zero and one.');
     if (dt === 0 || state.length === 0) return { events: [] };
     if (opts.collisions === false) {
-        // Fourth-order symplectic integration, subdivided near close encounters.
+        
         let remaining = dt;
         let count = 0;
         while (remaining > 1e-14) {
@@ -334,7 +334,7 @@ export function stepSimulation(state, G, softening, dt, opts = {}) {
         }
         return { events: [] };
     }
-    const steps = Math.ceil(dt / 0.001);
+    const steps = Math.max(1, Math.ceil(dt / 0.001 - 1e-10));
     if (steps > 1000) throw new RangeError('Time step is too large.');
     const h = dt / steps;
     const events = [];
@@ -346,13 +346,51 @@ export function stepSimulation(state, G, softening, dt, opts = {}) {
         state.forEach((b, i) => { b.vx += bax[i] * h / 2; b.vy += bay[i] * h / 2; });
     };
     for (let k = 0; k < steps; k++) {
-        // Resolve initial overlaps before evaluating a possibly singular force.
+        
         events.push(...detectAndResolve(state, 0, opts).events.map((ev) => ({ ...ev, time: k * h })));
         kick();
         events.push(...detectAndResolve(state, h, opts).events.map((ev) => ({ ...ev, time: k * h + ev.time })));
         kick();
     }
     return { events };
+}
+
+export function stepSimulation(state, G, softening, dt, opts = {}) {
+    validateStep(state, G, softening, dt);
+    if (dt < 0 || dt > 1) throw new RangeError('Simulation time step must be between zero and one.');
+    if (dt <= 1e-14 || !state.length) return { events: [], errorEstimate: 0 };
+    const tolerance = opts.tolerance ?? 1e-10;
+    if (!(tolerance > 0) || !Number.isFinite(tolerance)) throw new RangeError('Invalid accuracy tolerance.');
+    const options = { ...opts, onEvent: undefined };
+    const working = state.map(b => ({ ...b }));
+    const events = [];
+    let elapsed = 0, h = Math.min(dt, .002), attempts = 0, errorEstimate = 0;
+    while (elapsed < dt) {
+        h = Math.min(h, dt - elapsed);
+        if (++attempts > 50000 || h <= 1e-15) throw new RangeError('Не удалось выдержать точность: слишком тесное сближение.');
+        const coarse = working.map(b => ({ ...b }));
+        const fine = working.map(b => ({ ...b }));
+        const full = integrateStep(coarse, G, softening, h, options);
+        const first = integrateStep(fine, G, softening, h / 2, options);
+        const second = integrateStep(fine, G, softening, h / 2, options);
+        const acceptedEvents = [...first.events, ...second.events.map(e => ({ ...e, time: h / 2 + e.time }))];
+        let error = coarse.length === fine.length && full.events.length === acceptedEvents.length ? 0 : Infinity;
+        if (Number.isFinite(error)) {
+            for (let i = 0; i < fine.length; i++) for (const key of ['x', 'y', 'vx', 'vy']) {
+                error = Math.max(error, Math.abs(coarse[i][key] - fine[i][key]) / Math.max(1, Math.abs(coarse[i][key]), Math.abs(fine[i][key])));
+            }
+        }
+        if (error > tolerance) { h /= 2; continue; }
+        working.splice(0, working.length, ...fine);
+        events.push(...acceptedEvents.map(e => ({ ...e, time: elapsed + e.time })));
+        errorEstimate = Math.max(errorEstimate, error);
+        elapsed += h;
+        if (dt - elapsed < 1e-15) elapsed = dt;
+        if (error < tolerance / 32) h = Math.min(h * 2, .002);
+    }
+    state.splice(0, state.length, ...working);
+    events.forEach(e => opts.onEvent?.(e));
+    return { events, errorEstimate };
 }
 
 export function toSimBodies(bodies) {

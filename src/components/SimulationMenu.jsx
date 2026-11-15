@@ -442,7 +442,8 @@ function LineChart({ title, series, duration, isExpanded, onToggleExpand }) {
     );
 }
 
-export function SimulationSetupMenu({ onStart, onClose }) {
+export function SimulationSetupMenu({ onStart, onClose, exactAvailable = false }) {
+    const [numerical, setNumerical] = useState(false);
 
     const modalRef = useRef(null);
     const [pos, setPos] = useState(() => ({
@@ -539,6 +540,7 @@ export function SimulationSetupMenu({ onStart, onClose }) {
                 </div>
 
 
+                {exactAvailable && <label className="solution-note"><input type="checkbox" checked={numerical} onChange={e => setNumerical(e.target.checked)} /> Проверить численно вместо точной орбиты</label>}
                 <div className="sim-expect-group">
                     <label>Ожидаемый результат</label>
                     <div className="sim-expect-options">
@@ -563,7 +565,7 @@ export function SimulationSetupMenu({ onStart, onClose }) {
                 <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => onStart(Math.max(0.5, toFloat(targetTime, 10)), expectedOutcome)}
+                    onClick={() => onStart(Math.max(0.5, toFloat(targetTime, 10)), expectedOutcome, numerical)}
                 >
                     Запустить
                 </button>

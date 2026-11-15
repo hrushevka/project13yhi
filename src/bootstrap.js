@@ -1,4 +1,4 @@
-// Keep startup failures visible even when React or an application module fails to load.
+
 import('./main.jsx').catch(error => {
     console.error('Cosmos lab startup failed', error);
     const root = document.getElementById('root');

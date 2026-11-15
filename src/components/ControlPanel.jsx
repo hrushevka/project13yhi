@@ -1,6 +1,7 @@
 import { RangeNumber } from './RangeNumber';
 
 export function ControlPanel({
+    cameraControls,
     isPanelCollapsed,
     setIsPanelCollapsed,
     running,
@@ -20,6 +21,7 @@ export function ControlPanel({
     return (
         <div className={`sim-panel-wrapper ${isPanelCollapsed ? 'collapsed' : ''}`}>
             <section className="sim-panel" aria-label="Управление симуляцией">
+                {!isPanelCollapsed && cameraControls}
                 <div className="sim-row transport-row">
                     <button
                         type="button"

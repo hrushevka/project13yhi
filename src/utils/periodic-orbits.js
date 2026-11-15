@@ -2,8 +2,6 @@
 
 const cache = new Map();
 
-// A sampled numerical period, not an exact analytical solution. Retain the
-// measured closure error instead of changing the forces to force a closed orbit.
 export function preparePeriodicOrbit(preset) {
     if (cache.has(preset)) return cache.get(preset);
     const count = Math.ceil(preset.period / 0.001);
@@ -32,8 +30,7 @@ export function evaluatePeriodicOrbit(orbit, time, state) {
     const index = Math.min(orbit.frames.length - 2, Math.floor(phase / orbit.h));
     const remainder = Math.max(0, phase - index * orbit.h);
     state.forEach((b, i) => Object.assign(b, orbit.frames[index][i]));
-    // Integrate the short remainder: interpolating fast close encounters can
-    // produce inconsistent velocities and large artificial energy changes.
+
     const steps = Math.ceil(remainder / 0.0001);
     for (let i = 0; i < steps; i++) stepSimulation(state, orbit.g, orbit.softening, remainder / steps, { collisions: false });
 }

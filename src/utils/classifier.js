@@ -1,8 +1,5 @@
 ﻿export { totalEnergy } from './physics.js';
 
-// An escape candidate must be far from every companion and receding from their
-// centre of mass with positive relative two-cluster energy. This is a diagnostic,
-// not a proof of long-term stability of a three-body orbit.
 export function classify(bodies, G, softening, hasCollided = false) {
     if (bodies.length === 0) return 'unknown';
     if (bodies.length > 1) {

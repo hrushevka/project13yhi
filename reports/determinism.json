@@ -1,0 +1,194 @@
+[
+  {
+    "name": "Восьмёрка",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 2.3130420288685265e-10,
+    "firstAboveTarget": null,
+    "error": null
+  },
+  {
+    "name": "Эйлер",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 1.1428297119367343e-10,
+    "firstAboveTarget": null,
+    "error": null
+  },
+  {
+    "name": "Лагранж (3-1-1)",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 2.6014247425427386,
+    "firstAboveTarget": 15.104000000000001,
+    "error": null
+  },
+  {
+    "name": "Лагранж (1-1-1)",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 27.550190907721074,
+    "firstAboveTarget": 19.773,
+    "error": null
+  },
+  {
+    "name": "Лагранж: эллипсы (1-2-3)",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 6.497182000808099,
+    "firstAboveTarget": 34.539,
+    "error": null
+  },
+  {
+    "name": "Лагранж: овалы (1-1-1)",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 2.6659009316905085,
+    "firstAboveTarget": 33.081,
+    "error": null
+  },
+  {
+    "name": "Лагранж: вытянутые эллипсы",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 1.0995855374199257,
+    "firstAboveTarget": 54.695,
+    "error": null
+  },
+  {
+    "name": "Эйлер: эллипсы",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 7.273863089947657e-11,
+    "firstAboveTarget": null,
+    "error": null
+  },
+  {
+    "name": "Бабочка I",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.6572464953650197,
+    "firstAboveTarget": 1.2590000000000001,
+    "error": null
+  },
+  {
+    "name": "Бабочка II",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 2.8419263286693095,
+    "firstAboveTarget": 1.338,
+    "error": null
+  },
+  {
+    "name": "Мотылёк I",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.0005470104416265125,
+    "firstAboveTarget": 17.134,
+    "error": null
+  },
+  {
+    "name": "Мотылёк II",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.0015227022134563992,
+    "firstAboveTarget": 19.901,
+    "error": null
+  },
+  {
+    "name": "Стрекоза",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.21628503561713183,
+    "firstAboveTarget": 3.967,
+    "error": null
+  },
+  {
+    "name": "Инь-Ян I",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.24501032387457786,
+    "firstAboveTarget": 4.9270000000000005,
+    "error": null
+  },
+  {
+    "name": "Инь-Ян II",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.3290477982151171,
+    "firstAboveTarget": 2.959,
+    "error": null
+  },
+  {
+    "name": "Брук R4",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 3.6589462375531984e-8,
+    "firstAboveTarget": null,
+    "error": null
+  },
+  {
+    "name": "Овал / кошачья мордочка",
+    "time": 73.934,
+    "repeatError": 0,
+    "maxReferenceError": 40.915912232369514,
+    "firstAboveTarget": 3.926,
+    "error": "Не удалось выдержать точность: слишком тесное сближение."
+  },
+  {
+    "name": "Два овала",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.000003890893336809511,
+    "firstAboveTarget": null,
+    "error": null
+  },
+  {
+    "name": "Три овала",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 0.0033341280356764765,
+    "firstAboveTarget": 4.233,
+    "error": null
+  },
+  {
+    "name": "Овалы с завитками",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 3.453444790248496,
+    "firstAboveTarget": 16.112000000000002,
+    "error": null
+  },
+  {
+    "name": "Рука об руку",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 12.001430409887387,
+    "firstAboveTarget": 1.8780000000000001,
+    "error": null
+  },
+  {
+    "name": "Треугольники с петлями",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 1.0541977464599055e-7,
+    "firstAboveTarget": null,
+    "error": null
+  },
+  {
+    "name": "Ананас",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 10.654068760955244,
+    "firstAboveTarget": 2.733,
+    "error": null
+  },
+  {
+    "name": "Колыбель Ньютона",
+    "time": 100,
+    "repeatError": 0,
+    "maxReferenceError": 12.968463062190494,
+    "firstAboveTarget": 1.686,
+    "error": null
+  }
+]

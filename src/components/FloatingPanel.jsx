@@ -6,6 +6,13 @@ export function FloatingPanel({ id, title, children, className = '', onClose, co
     const [collapsed, setCollapsed] = useState(() => id === 'controls' && window.innerWidth <= 700);
     const key = 'cosmos.panel.' + id;
     useLayoutEffect(() => {
+        if (id !== 'controls') return;
+        const query = window.matchMedia('(max-width:700px)');
+        const adapt = e => { if (e.matches) setCollapsed(true); };
+        query.addEventListener('change', adapt);
+        return () => query.removeEventListener('change', adapt);
+    }, [id]);
+    useLayoutEffect(() => {
         const node = ref.current;
         const clamp = () => {
             const r = node.getBoundingClientRect();
@@ -16,7 +23,8 @@ export function FloatingPanel({ id, title, children, className = '', onClose, co
                 return;
             }
             node.style.left = Math.max(8, Math.min(r.left, innerWidth - r.width - 8)) + 'px';
-            node.style.top = Math.max(72, Math.min(r.top, innerHeight - Math.min(r.height, innerHeight - 80) - 8)) + 'px';
+            const minTop = innerHeight <= 600 ? 8 : 72;
+            node.style.top = Math.max(minTop, Math.min(r.top, innerHeight - r.height - 8)) + 'px';
             node.style.right = 'auto'; node.style.bottom = 'auto';
         };
         try {
@@ -24,7 +32,7 @@ export function FloatingPanel({ id, title, children, className = '', onClose, co
             if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) {
                 node.style.left = saved.x + 'px'; node.style.top = saved.y + 'px';
             }
-        } catch { /* Optional storage. */ }
+        } catch {  }
         clamp();
         const observer = new ResizeObserver(clamp);
         observer.observe(node);
@@ -33,7 +41,7 @@ export function FloatingPanel({ id, title, children, className = '', onClose, co
     }, [key, id]);
     function save() {
         const r = ref.current.getBoundingClientRect();
-        try { localStorage.setItem(key, JSON.stringify({ x: r.left, y: r.top })); } catch { /* Optional storage. */ }
+        try { localStorage.setItem(key, JSON.stringify({ x: r.left, y: r.top })); } catch {  }
     }
     function move(x, y) {
         if (id === 'controls' && innerWidth <= 700) return;

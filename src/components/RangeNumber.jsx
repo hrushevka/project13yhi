@@ -1,6 +1,5 @@
 ﻿import { useId, useState } from 'react';
 
-// Keep an editing draft so clearing a field or typing '-' / an exponent is possible.
 export function RangeNumber({ label, value, onChange, min, max, step = 0.01 }) {
     const id = useId();
     const [draft, setDraft] = useState(null);

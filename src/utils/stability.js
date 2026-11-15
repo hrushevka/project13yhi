@@ -1,7 +1,7 @@
 import { stepSimulation, PLANET_COLLISION_OPTIONS } from './physics.js';
 import { classify } from './classifier.js';
 
-// A bounded forecast, not a proof of long-term three-body stability.
+
 export function forecastStability({ bodies, gravity, softening, collisions }) {
     if (bodies.length < 2) return { kind: 'unknown', text: 'Для оценки нужны хотя бы два тела' };
     const state = bodies.map(b => ({ ...b }));

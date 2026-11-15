@@ -120,7 +120,7 @@ export function liveMetrics(bodies, initialBodies) {
     const extent = bs => Math.max(0, ...pairDistances(bs).map(p => p.d));
     const size = extent(bodies), initialSize = extent(initialBodies);
     return { pairs, size, sizeRatio: initialSize > 0 ? size / initialSize : null,
-        speeds: bodies.map((b, i) => ({ label: i + 1, speed: Math.hypot(b.vx, b.vy) })) };
+        speeds: bodies.map((b, i) => ({ id: b.id, label: i + 1, speed: Math.hypot(b.vx, b.vy) })) };
 }
 
 export function getSummary(stats) {
