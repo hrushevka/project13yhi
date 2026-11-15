@@ -1,4 +1,4 @@
-# (Cosmos lab)[https://cosmoslab.ddns.net/]
+# [Cosmos lab](https://cosmoslab.ddns.net/)
 
 Симуляция проблемы Трёх космических тел.
 
